@@ -1,15 +1,15 @@
 /* ==========================================================================
-   1. VARIÁVEIS E RESET
+   1. CONFIGURAÇÕES GERAIS E VARIÁVEIS
+   (Configura cores, fontes e o comportamento básico de todos os elementos)
    ========================================================================== */
 :root {
     --black: #000000;
     --white: #ffffff;
-    --grey-light: #f5f5f5;
+    --grey-bg: #f5f5f5;
     --grey-text: #757575;
     --border: #e5e5e5;
     --font-main: 'Inter', sans-serif;
-    --transition: 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    --danger: #ff4d4d;
+    --transition: 0.4s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 * { 
@@ -19,19 +19,34 @@
     font-family: var(--font-main); 
 }
 
-body {
-    background-color: var(--white);
-    color: var(--black);
-    overflow-x: hidden;
-    line-height: 1.6;
+body { 
+    background-color: var(--white); 
+    color: var(--black); 
+    overflow-x: hidden; 
 }
 
-img { max-width: 100%; display: block; }
-a { text-decoration: none; color: inherit; transition: var(--transition); }
-
 /* ==========================================================================
-   2. HEADER E NAVEGAÇÃO
+   2. NAVEGAÇÃO E TOPO (HEADER)
+   (Organiza a barra de utilidades, logo, menu principal e ícones)
    ========================================================================== */
+
+/* Barra superior (Ajuda / Login) */
+.utility-nav {
+    background: #fcfcfc;
+    padding: 10px 5%;
+    font-size: 11px;
+    border-bottom: 1px solid var(--border);
+}
+
+.utility-container {
+    max-width: 1300px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Header principal */
 header {
     height: 80px;
     background: var(--white);
@@ -45,72 +60,271 @@ header {
     border-bottom: 1px solid var(--border);
 }
 
-.logo { font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -1px; }
+/* Logo e Selos */
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.logo { font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: -1px; }
 .logo span { font-weight: 400; color: var(--grey-text); }
 
-.main-nav a { color: var(--black); font-weight: 700; margin: 0 15px; font-size: 15px; position: relative; }
-.main-nav a:hover { color: var(--grey-text); }
-.main-nav a.active::after {
-    content: '';
-    position: absolute;
-    bottom: -5px; left: 0;
-    width: 100%; height: 2px;
+.promo-badge {
     background: var(--black);
-}
-
-.icon-btn { 
-    background: none; border: none; font-size: 1.3rem; 
-    cursor: pointer; margin-left: 20px; position: relative; 
-}
-
-#cartCountBadge {
-    position: absolute; top: -5px; right: -10px;
-    background: var(--danger); color: white;
-    font-size: 10px; padding: 2px 6px; border-radius: 50%;
+    color: var(--white);
+    font-size: 9px;
+    padding: 3px 8px;
+    border-radius: 3px;
     font-weight: 800;
 }
 
+/* Links do Menu */
+.main-nav a {
+    margin: 0 15px;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--black);
+    text-decoration: none;
+}
+
+.main-nav a.active { border-bottom: 2px solid var(--black); padding-bottom: 5px; }
+
+/* Botões de Ícones (Favorito/Carrinho) */
+.icon-btn {
+    background: none;
+    border: none;
+    font-size: 1.3rem;
+    cursor: pointer;
+    margin-left: 15px;
+    position: relative;
+}
+
+#cartCountBadge {
+    position: absolute; 
+    top: -5px; 
+    right: -8px;
+    background: #ff4d4d; 
+    color: white;
+    font-size: 10px; 
+    padding: 2px 6px; 
+    border-radius: 50%;
+}
 /* ==========================================================================
-   3. CARRINHO SIDEBAR E OVERLAY
+   3. VITRINE E PRODUTOS (CARDS) - VERSÃO REFORMULADA
    ========================================================================== */
+
+/* Grade da vitrine com espaçamento otimizado */
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px 15px; /* Margens reduzidas para um visual mais compacto */
+    padding: 30px 5%;
+    max-width: 1300px;
+    margin: 0 auto;
+}
+
+.product-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: var(--white);
+    transition: var(--transition);
+}
+
+/* Espaço da imagem do produto */
+.product-thumb {
+    position: relative;
+    background: var(--grey-bg);
+    border-radius: 15px; /* Bordas arredondadas mais visíveis */
+    overflow: hidden;
+    
+    /* Alterado para flex para permitir centralização */
+    display: flex;
+    flex-direction: column; /* Alinha os itens (imagem e botão) em coluna */
+    justify-content: center;
+    align-items: center;
+    
+    padding: 15px; /* Espaçamento interno para o botão não colar na borda */
+    text-align: center;
+}
+
+/* Estilo para o botão dentro do product-thumb */
+.product-thumb button {
+    margin-top: 10px; /* Garante que ele fique abaixo da imagem */
+    border-radius: 20px; /* Bordas arredondadas para o botão */
+    padding: 8px 16px;
+    cursor: pointer;
+}
+
+/* Controle da imagem vinda do banco */
+.product-thumb img {
+    width: 85%; /* Imagem maior para preencher melhor o espaço */
+    height: auto;
+    object-fit: contain;
+    transition: var(--transition);
+}
+
+/* Efeito de zoom suave ao passar o mouse no card */
+.product-card:hover .product-thumb img { 
+    transform: scale(1.08); 
+}
+
+/* BOTÃO DE FAVORITAR (Canto superior direito) */
+.btn-fav {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: var(--white);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    font-size: 1rem;
+    transition: var(--transition);
+}
+
+.btn-fav:hover {
+    transform: scale(1.1);
+    color: #ff4d4d;
+}
+
+/* BOTÃO COMPRAR (Fixo abaixo da imagem) */
+.btn-buy-overlay {
+    width: 100%;
+    background: var(--black);
+    color: var(--white);
+    border: none;
+    padding: 12px;
+    font-weight: 800;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-top: 5px; /* Posicionado logo abaixo do thumb */
+    transition: background 0.3s ease;
+    /* Removido o position: absolute para não flutuar */
+    opacity: 1; 
+}
+
+.btn-buy-overlay:hover {
+    background: #333; /* Feedback visual no hover */
+}
+
+/* Textos e Preços */
+.product-details {
+    padding: 5px 0;
+}
+
+.product-details h4 { 
+    font-size: 14px; 
+    margin: 4px 0 2px; 
+    font-weight: 700; 
+    color: var(--black);
+    text-transform: capitalize;
+}
+
+.product-details .price { 
+    font-weight: 900; 
+    font-size: 14px; 
+    color: var(--black);
+}
+
+/* ==========================================================================
+   4. CARRINHO LATERAL (SIDEBAR) E SOBREPOSIÇÃO
+   (Controla a gaveta do carrinho e o fundo escurecido)
+   ========================================================================== */
+
+/* Fundo escurecido atrás do carrinho */
+.overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(4px);
+    z-index: 2000;
+    display: none;
+}
+
+.overlay.active { display: block; }
+
+/* Gaveta lateral do carrinho */
 .sidebar {
-    position: fixed; top: 0; right: -100%; 
-    width: 100%; max-width: 420px; 
-    height: 100vh; background: var(--white); 
-    z-index: 2001; 
-    transition: var(--transition); 
-    box-shadow: -10px 0 50px rgba(0,0,0,0.1);
+    position: fixed;
+    top: 0;
+    right: -100%; /* Escondido fora da tela */
+    width: 100%;
+    max-width: 400px;
+    height: 100vh;
+    background: var(--white);
+    z-index: 2001;
+    transition: var(--transition);
+    box-shadow: -15px 0 50px rgba(0,0,0,0.1);
     display: flex;
     flex-direction: column;
 }
 
-.sidebar.active { right: 0; }
+.sidebar.active { right: 0; } /* Mostra ao ativar */
 
-.modal-variantes-overlay { 
-    position: fixed; top:0; left:0; 
-    width:100%; height:100%; 
-    background: rgba(0,0,0,0.5); 
-    display:none; z-index: 2000; 
-    backdrop-filter: blur(8px);
+.sidebar-header {
+    padding: 25px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-.modal-variantes-overlay.active { display: block; }
+.cart-list-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.sidebar-footer {
+    padding: 25px;
+    border-top: 1px solid var(--border);
+    background: var(--white);
+}
+
+.total-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    font-weight: 800;
+    font-size: 18px;
+}
+
+.btn-checkout {
+    width: 100%;
+    padding: 18px;
+    background: var(--black);
+    color: var(--white);
+    border: none;
+    font-weight: 800;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 4px;
+}
 
 /* ==========================================================================
-   4. UTILITÁRIOS GERAIS
+   5. AJUSTES PARA CELULAR (RESPONSIVIDADE)
+   (Garante que o site fique bom em telas pequenas)
    ========================================================================== */
-.btn-comprar-detalhe {
-    width: 100%; padding: 20px;
-    background: var(--black); color: var(--white);
-    border: none; border-radius: 60px;
-    font-weight: 800; font-size: 16px;
-    text-transform: uppercase; cursor: pointer;
-    transition: var(--transition);
-    letter-spacing: 1px;
-    text-align: center;
-}
-
-.btn-comprar-detalhe:hover {
-    background: #333;
-    transform: translateY(-3px);
+@media (max-width: 768px) {
+    .product-grid { 
+        grid-template-columns: 1fr 1fr; /* 2 colunas no celular */
+        gap: 15px; 
+    }
+    
+    .main-nav { display: none; } /* Esconde o menu de texto lateral */
+    
+    .sidebar { max-width: 85%; } /* Carrinho ocupa quase toda a tela */
 }

@@ -1,15 +1,15 @@
 /* ==========================================================================
    1. CONFIGURAÇÕES GERAIS E VARIÁVEIS
-   (Configura cores, fontes e o comportamento básico de todos os elementos)
    ========================================================================== */
 :root {
     --black: #000000;
     --white: #ffffff;
-    --grey-bg: #f5f5f5;
+    --grey-bg: #f8f8f8;
     --grey-text: #757575;
     --border: #e5e5e5;
     --font-main: 'Inter', sans-serif;
     --transition: 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+    --shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 * { 
@@ -26,11 +26,10 @@ body {
 }
 
 /* ==========================================================================
-   2. NAVEGAÇÃO E TOPO (HEADER)
-   (Organiza a barra de utilidades, logo, menu principal e ícones)
+   2. NAVEGAÇÃO E HEADER
    ========================================================================== */
 
-/* Barra superior (Ajuda / Login) */
+/* Barra de utilidades superior */
 .utility-nav {
     background: #fcfcfc;
     padding: 10px 5%;
@@ -60,7 +59,6 @@ header {
     border-bottom: 1px solid var(--border);
 }
 
-/* Logo e Selos */
 .logo-container {
     display: flex;
     align-items: center;
@@ -68,8 +66,12 @@ header {
     cursor: pointer;
 }
 
-.logo { font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: -1px; }
-.logo span { font-weight: 400; color: var(--grey-text); }
+.logo { 
+    font-size: 22px; 
+    font-weight: 900; 
+    text-transform: uppercase; 
+    letter-spacing: -1px; 
+}
 
 .promo-badge {
     background: var(--black);
@@ -80,18 +82,20 @@ header {
     font-weight: 800;
 }
 
-/* Links do Menu */
 .main-nav a {
     margin: 0 15px;
     font-weight: 700;
     font-size: 14px;
     color: var(--black);
     text-decoration: none;
+    transition: var(--transition);
 }
 
-.main-nav a.active { border-bottom: 2px solid var(--black); padding-bottom: 5px; }
+.main-nav a.active { 
+    border-bottom: 2px solid var(--black); 
+    padding-bottom: 5px; 
+}
 
-/* Botões de Ícones (Favorito/Carrinho) */
 .icon-btn {
     background: none;
     border: none;
@@ -111,139 +115,137 @@ header {
     padding: 2px 6px; 
     border-radius: 50%;
 }
+
 /* ==========================================================================
-   3. VITRINE E PRODUTOS (CARDS) - VERSÃO REFORMULADA
+   3. VITRINE DE PRODUTOS (ESTILO PREMIUM)
    ========================================================================== */
 
-/* Grade da vitrine com espaçamento otimizado */
 .product-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 20px 15px; /* Margens reduzidas para um visual mais compacto */
-    padding: 30px 5%;
-    max-width: 1300px;
-    margin: 0 auto;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 30px;
+    padding: 40px 5%;
 }
 
 .product-card {
+    width: 100%;
+    max-width: 320px;
     position: relative;
-    display: flex;
-    flex-direction: column;
-    background: var(--white);
-    transition: var(--transition);
+    transition: transform 0.3s ease;
 }
 
-/* Espaço da imagem do produto */
+.product-card:hover {
+    transform: translateY(-5px);
+}
+
 .product-thumb {
     position: relative;
     background: var(--grey-bg);
-    border-radius: 15px; /* Bordas arredondadas mais visíveis */
-    overflow: hidden;
-    
-    /* Alterado para flex para permitir centralização */
+    border-radius: 35px;
+    padding: 30px;
     display: flex;
-    flex-direction: column; /* Alinha os itens (imagem e botão) em coluna */
-    justify-content: center;
+    flex-direction: column;
     align-items: center;
-    
-    padding: 15px; /* Espaçamento interno para o botão não colar na borda */
-    text-align: center;
+    justify-content: center;
+    overflow: hidden;
+    aspect-ratio: 1 / 1.1;
 }
 
-/* Estilo para o botão dentro do product-thumb */
-.product-thumb button {
-    margin-top: 10px; /* Garante que ele fique abaixo da imagem */
-    border-radius: 20px; /* Bordas arredondadas para o botão */
-    padding: 8px 16px;
-    cursor: pointer;
-}
-
-/* Controle da imagem vinda do banco */
 .product-thumb img {
-    width: 85%; /* Imagem maior para preencher melhor o espaço */
+    width: 90%;
     height: auto;
     object-fit: contain;
-    transition: var(--transition);
+    transition: transform 0.5s ease;
 }
 
-/* Efeito de zoom suave ao passar o mouse no card */
-.product-card:hover .product-thumb img { 
-    transform: scale(1.08); 
-}
-
-/* BOTÃO DE FAVORITAR (Canto superior direito) */
-.btn-fav {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    background: var(--white);
-    border: none;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    z-index: 10;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    font-size: 1rem;
-    transition: var(--transition);
-}
-
-.btn-fav:hover {
+.product-card:hover .product-thumb img {
     transform: scale(1.1);
-    color: #ff4d4d;
 }
 
-/* BOTÃO COMPRAR (Fixo abaixo da imagem) */
+/* Botão de compra flutuante */
 .btn-buy-overlay {
-    width: 100%;
+    position: absolute;
+    bottom: 20px;
     background: var(--black);
     color: var(--white);
     border: none;
-    padding: 12px;
+    padding: 12px 30px;
+    border-radius: 50px;
+    font-size: 14px;
     font-weight: 800;
-    font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
     cursor: pointer;
-    border-radius: 4px;
-    margin-top: 5px; /* Posicionado logo abaixo do thumb */
-    transition: background 0.3s ease;
-    /* Removido o position: absolute para não flutuar */
-    opacity: 1; 
+    transition: all 0.3s ease;
+    opacity: 0;
+    transform: translateY(10px);
 }
 
-.btn-buy-overlay:hover {
-    background: #333; /* Feedback visual no hover */
+.product-card:hover .btn-buy-overlay {
+    opacity: 1;
+    transform: translateY(0);
 }
 
-/* Textos e Preços */
+/* Botão de favorito */
+.btn-fav {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: var(--white);
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    z-index: 10;
+    transition: 0.3s;
+}
+
+.btn-fav:hover {
+    background: var(--black);
+    color: var(--white);
+}
+
 .product-details {
-    padding: 5px 0;
+    padding: 20px 10px;
+    text-align: left;
 }
 
-.product-details h4 { 
-    font-size: 14px; 
-    margin: 4px 0 2px; 
-    font-weight: 700; 
-    color: var(--black);
-    text-transform: capitalize;
+.product-details h4 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a1a;
+    text-transform: uppercase;
 }
 
-.product-details .price { 
-    font-weight: 900; 
-    font-size: 14px; 
-    color: var(--black);
+.product-details .price {
+    margin-top: 8px;
+    font-size: 20px;
+    font-weight: 900;
+}
+
+.product-options {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.option-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid #ddd;
 }
 
 /* ==========================================================================
-   4. CARRINHO LATERAL (SIDEBAR) E SOBREPOSIÇÃO
-   (Controla a gaveta do carrinho e o fundo escurecido)
+   4. CARRINHO LATERAL (SIDEBAR)
    ========================================================================== */
 
-/* Fundo escurecido atrás do carrinho */
 .overlay {
     position: fixed;
     top: 0; left: 0;
@@ -256,11 +258,10 @@ header {
 
 .overlay.active { display: block; }
 
-/* Gaveta lateral do carrinho */
 .sidebar {
     position: fixed;
     top: 0;
-    right: -100%; /* Escondido fora da tela */
+    right: -100%;
     width: 100%;
     max-width: 400px;
     height: 100vh;
@@ -272,7 +273,7 @@ header {
     flex-direction: column;
 }
 
-.sidebar.active { right: 0; } /* Mostra ao ativar */
+.sidebar.active { right: 0; }
 
 .sidebar-header {
     padding: 25px;
@@ -311,20 +312,176 @@ header {
     font-weight: 800;
     text-transform: uppercase;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: 50px; /* Seguindo o padrão arredondado */
 }
 
 /* ==========================================================================
-   5. AJUSTES PARA CELULAR (RESPONSIVIDADE)
-   (Garante que o site fique bom em telas pequenas)
+   5. RESPONSIVIDADE
    ========================================================================== */
 @media (max-width: 768px) {
     .product-grid { 
-        grid-template-columns: 1fr 1fr; /* 2 colunas no celular */
+        grid-template-columns: 1fr 1fr; 
         gap: 15px; 
     }
     
-    .main-nav { display: none; } /* Esconde o menu de texto lateral */
+    .main-nav { display: none; }
     
-    .sidebar { max-width: 85%; } /* Carrinho ocupa quase toda a tela */
+    .sidebar { max-width: 85%; }
+
+    .product-thumb {
+        border-radius: 20px;
+        padding: 15px;
+    }
+
+    .btn-buy-overlay {
+        display: none; /* Em celulares, melhor deixar o clique no card todo */
+    }
+}
+/* Layout Principal em Duas Colunas */
+.produto-container {
+    display: flex;
+    max-width: 1200px;
+    margin: 40px auto;
+    gap: 60px;
+    padding: 20px;
+    align-items: flex-start;
+}
+
+/* Coluna da Imagem */
+.produto-media {
+    flex: 1.2;
+    position: sticky;
+    top: 100px;
+}
+
+.glass-card {
+    background: #f8f8f8;
+    border-radius: 40px; /* Bordas arredondadas da foto que você mandou */
+    padding: 50px;
+    display: flex;
+    justify-content: center;
+    position: relative;
+}
+
+.glass-card img {
+    max-width: 100%;
+    height: auto;
+    mix-blend-mode: multiply; /* Remove fundo branco da foto */
+}
+
+.fav-icon {
+    position: absolute;
+    top: 25px;
+    right: 25px;
+    background: white;
+    border: none;
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    cursor: pointer;
+    font-size: 20px;
+}
+
+/* Coluna de Informações */
+.produto-info {
+    flex: 0.8;
+}
+
+.brand-tag {
+    font-size: 12px;
+    font-weight: 800;
+    color: #888;
+    letter-spacing: 2px;
+}
+
+.product-title {
+    font-size: 42px;
+    font-weight: 900;
+    margin: 10px 0;
+    text-transform: lowercase; /* Estilo 'sapato teste' da sua imagem */
+}
+
+.product-price {
+    font-size: 28px;
+    font-weight: 400;
+    margin-bottom: 40px;
+}
+
+/* Seletores de Tamanho (Chips) */
+.chips-container {
+    display: flex;
+    gap: 10px;
+    margin: 15px 0 30px;
+}
+
+.chip {
+    padding: 12px 20px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: 0.3s;
+}
+
+.chip.active {
+    background: black;
+    color: white;
+    border-color: black;
+}
+
+/* Botões de Ação */
+.btn-black {
+    width: 100%;
+    padding: 20px;
+    background: black;
+    color: white;
+    border: none;
+    border-radius: 50px;
+    font-weight: 800;
+    cursor: pointer;
+    margin-bottom: 10px;
+}
+
+.btn-outline {
+    width: 100%;
+    padding: 15px;
+    background: transparent;
+    border: 1px solid #ddd;
+    border-radius: 50px;
+    cursor: pointer;
+}
+
+/* BOTÃO COMPRAR NA VITRINE (Arredondado) */
+.btn-buy-overlay {
+    position: absolute;
+    bottom: 20px;
+    background: var(--black); /* Preto sólido */
+    color: var(--white);
+    border: none;
+    padding: 12px 35px; /* Mais largo para destacar o arredondado */
+    border-radius: 50px; /* Bordas totalmente circulares */
+    font-size: 14px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    
+    /* Efeito de surgimento */
+    opacity: 0; 
+    transform: translateY(15px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+}
+
+/* Faz o botão aparecer suavemente ao passar o mouse no card */
+.product-card:hover .btn-buy-overlay {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Efeito de clique */
+.btn-buy-overlay:active {
+    transform: scale(0.95);
 }

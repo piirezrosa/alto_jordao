@@ -7,9 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setupMenuIndicator(); 
     atualizarInterfaceFavoritos();
-    renderizarCarrinho(); // Carrega os itens do carrinho ao iniciar
+    renderizarCarrinho(); 
     
-    // Se estiver na página de favoritos, renderiza a grid
     if (document.getElementById('favsGrid')) {
         renderizarPaginaFavoritos();
     }
@@ -17,33 +16,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* --- 1. LÓGICA DE COMPRA DIRETA (PÁGINA DE PRODUTO) --- */
 
-/**
- * Captura as seleções de cor e tamanho e envia para o carrinho
- */
 function adicionarAoCarrinhoDireto(produto) {
     const txtCor = document.getElementById('txt-cor-selecionada');
     const selTam = document.getElementById('select-tamanho');
 
-    // 1. Validação de Cor
     const corSelecionada = txtCor ? txtCor.innerText : 'Padrão';
     if (corSelecionada === "Selecione") {
-        alert("Por favor, selecione uma cor clicando em uma das opções.");
+        alert("Por favor, selecione uma cor.");
         return;
     }
 
-    // 2. Validação de Tamanho
     const tamSelecionado = selTam ? selTam.value : 'Único';
     if (tamSelecionado === "") {
         alert("Por favor, selecione um tamanho.");
         return;
     }
 
-    // 3. Monta o objeto (Garante que o caminho da imagem esteja correto)
+    // Normalização do caminho da imagem
+    const imgRaw = produto.imagem || produto.img || 'placeholder.jpg';
+    const finalImg = imgRaw.includes('/') ? imgRaw : "img/" + imgRaw;
+
     const itemParaCarrinho = {
         id: produto.id,
         nome: produto.nome,
         preco: parseFloat(produto.preco),
-        img: produto.imagem.includes('/') ? produto.imagem : "img/produtos/" + produto.imagem,
+        img: finalImg,
         opcoes: `Tam: ${tamSelecionado} | Cor: ${corSelecionada}`
     };
 
@@ -71,7 +68,7 @@ function fecharTodosModais() {
 
 function adicionarAoCarrinho(p) {
     let carrinho = JSON.parse(sessionStorage.getItem('fashion_cart')) || [];
-    const cartId = `${p.id}-${p.opcoes}`; // Chave única para variações
+    const cartId = `${p.id}-${p.opcoes}`; 
 
     const index = carrinho.findIndex(item => item.cartId === cartId);
 
@@ -144,11 +141,96 @@ function removerDoCarrinho(cartId) {
     renderizarCarrinho();
 }
 
-/* --- 3. INTERFACE E UTILITÁRIOS --- */
+/* --- 3. LÓGICA DE FAVORITOS (LOCALSTORAGE) --- */
+
+function toggleFavorito(produto) {
+    if (!produto || !produto.id) return;
+
+    let favoritos = JSON.parse(localStorage.getItem('fashion_favs')) || [];
+    const index = favoritos.findIndex(item => String(item.id) === String(produto.id));
+
+    if (index > -1) {
+        favoritos.splice(index, 1);
+    } else {
+        // Correção para o erro de "undefined" na imagem
+        const imgRaw = produto.imagem || produto.img || 'placeholder.jpg';
+        const finalImg = imgRaw.includes('/') ? imgRaw : "img/" + imgRaw;
+
+        favoritos.push({
+            id: produto.id,
+            nome: produto.nome,
+            preco: produto.preco,
+            img: finalImg
+        });
+    }
+
+    localStorage.setItem('fashion_favs', JSON.stringify(favoritos));
+    atualizarInterfaceFavoritos();
+    
+    if (document.getElementById('favsGrid')) {
+        renderizarPaginaFavoritos();
+    }
+}
+
+function atualizarInterfaceFavoritos() {
+    const favoritos = JSON.parse(localStorage.getItem('fashion_favs')) || [];
+    
+    document.querySelectorAll('.btn-fav').forEach(btn => {
+        const idProd = btn.getAttribute('data-id'); 
+        if (favoritos.some(item => String(item.id) === String(idProd))) {
+            btn.classList.add('active');
+            btn.innerHTML = '❤️';
+            btn.style.color = '#ff4d4d';
+        } else {
+            btn.classList.remove('active');
+            btn.innerHTML = '🤍';
+            btn.style.color = 'inherit';
+        }
+    });
+}
+
+function renderizarPaginaFavoritos() {
+    const container = document.getElementById('favsGrid');
+    if (!container) return;
+    
+    const favoritos = JSON.parse(localStorage.getItem('fashion_favs')) || [];
+    
+    if (favoritos.length === 0) {
+        container.innerHTML = `
+            <div style="grid-column: 1/-1; text-align:center; padding:80px; color:#999;">
+                <h3 style="margin-bottom:15px;">Sua lista de desejos está vazia.</h3>
+                <a href="index.php" style="text-decoration:underline; color:#000;">Voltar para a loja</a>
+            </div>`;
+        return;
+    }
+
+    container.innerHTML = favoritos.map(prod => {
+        // Garante que o objeto passado para a função seja seguro
+        const prodData = JSON.stringify(prod).replace(/'/g, "&apos;");
+        
+        return `
+            <div class="product-card">
+                <div class="product-thumb">
+                    <button class="btn-fav active" data-id="${prod.id}" 
+                       onclick='toggleFavorito(${prodData})'>❤️</button>
+                    <img src="${prod.img}" alt="${prod.nome}" onerror="this.src='img/placeholder.jpg'">
+                </div>
+                <button class="btn-buy-overlay" onclick="location.href='produto.php?id=${prod.id}'">VER PRODUTO</button>
+                <div class="product-details">
+                    <h4>${prod.nome}</h4>
+                    <p class="price">R$ ${parseFloat(prod.preco).toLocaleString('pt-br', {minimumFractionDigits: 2})}</p>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+/* --- 4. UTILITÁRIOS DE INTERFACE --- */
 
 function setupMenuIndicator() {
     const indicator = document.querySelector('.nav-indicator');
     const items = document.querySelectorAll('.main-nav a');
+    
     if (!indicator || items.length === 0) return;
 
     const moveIndicator = (el) => {
@@ -158,29 +240,38 @@ function setupMenuIndicator() {
     };
 
     items.forEach(item => {
-        item.addEventListener('mouseenter', (e) => moveIndicator(e.target));
+        item.addEventListener('mouseenter', () => moveIndicator(item));
         if (item.classList.contains('active')) moveIndicator(item);
     });
 }
 
-function atualizarInterfaceFavoritos() {
-    const favoritos = JSON.parse(localStorage.getItem('fashion_favs')) || [];
-    document.querySelectorAll('.btn-fav').forEach(btn => {
-        const nomeProd = btn.getAttribute('data-name'); 
-        if (favoritos.some(item => item.nome === nomeProd)) {
-            btn.classList.add('active');
-            btn.innerHTML = '<i class="fa-solid fa-heart"></i>'; // Se usar FontAwesome
-        }
-    });
-}
-
-function renderizarPaginaFavoritos() {
-    const container = document.getElementById('favsGrid');    if (!container) return;
+async function finalizarCompraNoBanco() {
+    const carrinho = JSON.parse(sessionStorage.getItem('fashion_cart')) || [];
     
-        const favoritos = JSON.parse(localStorage.getItem('fashion_favs')) || [];
-    if (favoritos.length === 0) {
-        container.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:50px;"><h3>Você ainda não favoritou nada.</h3></div>';
+    if (carrinho.length === 0) {
+        alert("Seu carrinho está vazio!");
         return;
     }
-    // Lógica adicional de renderização de cards de favoritos aqui se necessário
+
+    try {
+        const resposta = await fetch('processar_pedido.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(carrinho)
+        });
+
+        const resultado = await resposta.json();
+
+        if (resultado.sucesso) {
+            alert("Pedido realizado com sucesso!");
+            sessionStorage.removeItem('fashion_cart');
+            window.location.href = 'sucesso.php?id=' + resultado.pedido_id;
+        } else {
+            alert("Erro ao processar: " + resultado.erro);
+        }
+    } catch (error) {
+        console.error("Erro na requisição:", error);
+        alert("Erro de conexão com o servidor.");
+    }
 }
+

@@ -1154,3 +1154,58 @@ body {
     .admin-page-header { flex-direction: column; align-items: flex-start; gap: 20px; }
     .admin-table-wrapper { border-radius: 20px; }
 }
+
+/* --- ESTILOS ESPECÍFICOS INFANTIL --- */
+.kids-hero {
+    padding: 40px 5% 20px;
+}
+
+.kids-hero-content {
+    background: var(--white);
+    border-radius: 40px;
+    padding: 80px 40px;
+    text-align: center;
+    border: 1px solid var(--border);
+}
+
+.kids-hero h1 {
+    font-size: clamp(32px, 5vw, 64px);
+    font-weight: 900;
+    letter-spacing: -2px;
+    text-transform: lowercase;
+    margin: 20px 0;
+}
+
+.kids-hero .light-text {
+    font-weight: 400;
+    color: #bbb;
+}
+
+.filter-section {
+    padding: 0 5% 30px;
+}
+
+.filter-container {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.filter-label {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.filter-chips {
+    display: flex;
+    gap: 10px;
+}
+
+.empty-state {
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 100px 0;
+    color: var(--grey-text);
+}

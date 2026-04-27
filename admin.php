@@ -13,8 +13,11 @@ if (!isset($_SESSION['usuario_nivel']) || $_SESSION['usuario_nivel'] !== 'admin'
 
 // BUSCA DE DADOS
 try {
+    $lucrototal = $pdo->query("SELECT SUM(total) FROM pedidos WHERE status = 'pago'")->fetchColumn() ?: 0;
+    $totalPedidos = $pdo->query("SELECT COUNT(*) FROM pedidos WHERE status = 'pago'")->fetchColumn() ?: 1;
+    $ticketMedio = $lucrototal / $totalPedidos;
+    $produtosEsgotados = $pdo->query("SELECT COUNT(*) FROM produtos WHERE estoque <= 0")->fetchColumn();
     $totalProdutos = $pdo->query("SELECT COUNT(*) FROM produtos")->fetchColumn();
-    $estoqueTotal = $pdo->query("SELECT SUM(estoque) FROM produtos")->fetchColumn() ?: 0;
     $stmt = $pdo->query("SELECT * FROM produtos ORDER BY id DESC");
     $produtos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {

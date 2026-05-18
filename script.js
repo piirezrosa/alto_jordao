@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     verificarERepararFavoritos();
     setupHeaderActions();
     setupMenuIndicator(); 
+    setupKidsFilters();
     
     atualizarInterfaceFavoritos();
     renderizarCarrinho(); 
@@ -234,5 +235,32 @@ function setupMenuIndicator() {
     items.forEach(item => {
         item.addEventListener('mouseenter', () => move(item));
         if (item.classList.contains('active')) move(item);
+    });
+}
+
+/* --- INFANTIL --- */
+function setupKidsFilters() {
+    const chips = document.querySelectorAll('.filter-chips .chip');
+    const products = document.querySelectorAll('#kidsGrid .product-card');
+
+    chips.forEach(chip => {
+        chip.addEventListener('click', () => {
+            chips.forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+
+            const filterValue = chip.getAttribute('data-age');
+
+            products.forEach(product => {
+                const productAge = product.getAttribute('data-age-group');
+                
+                if (filterValue === 'todos' || productAge === filterValue) {
+                    product.style.display = 'block';
+                    setTimeout(() => product.style.opacity = '1', 10);
+                } else {
+                    product.style.opacity = '0';
+                    product.style.display = 'none';
+                }
+            });
+        });
     });
 }

@@ -17,6 +17,10 @@ if (!$p) {
 $queryRelacionados = $pdo->prepare("SELECT * FROM produtos WHERE categoria = ? AND id != ? LIMIT 4");
 $queryRelacionados->execute([$p['categoria'] ?? '', $id]);
 $relacionados = $queryRelacionados->fetchAll(PDO::FETCH_ASSOC);
+// BUSCA AVALIAÇÕES DO PRODUTO
+$queryAv = $pdo->prepare("SELECT * FROM avaliacoes WHERE produto_id = ? ORDER BY data_envio DESC");
+$queryAv->execute([$id]);
+$avaliacoes = $queryAv->fetchAll(PDO::FETCH_ASSOC);
 
 $strTamanho = $p['tamanho'] ?? $p['TAMANHO'] ?? '';
 $strCor = $p['cor'] ?? $p['COR'] ?? '';
@@ -172,7 +176,17 @@ $produtoJson = htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8');
     </div>
 
     <div id="reviewsList">
-        <p id="noReviews" style="color: #999; font-style: italic;">Nenhuma avaliação ainda. Seja o primeiro a avaliar!</p>
+        <?php if (count($avaliacoes) > 0): ?>
+            <?php foreach ($avaliacoes as $av): ?>
+                <div class="review-item">
+                    <div style="color: #000; margin-bottom: 5px;"><?= str_repeat("⭐", $av['estrelas']) ?></div>
+                    <strong style="text-transform: uppercase; font-size: 12px;"><?= htmlspecialchars($av['nome']) ?></strong>
+                    <p style="color: #666; font-size: 14px; margin-top: 10px; line-height: 1.6;"><?= htmlspecialchars($av['comentario']) ?></p>
+                </div>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <p id="noReviews" style="color: #999; font-style: italic;">Nenhuma avaliação ainda. Seja o primeiro a avaliar este produto!</p>
+        <?php endif; ?>
     </div>
 </section>
 
@@ -227,7 +241,6 @@ $produtoJson = htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8');
             <strong style="text-transform: uppercase; font-size: 12px;">${name}</strong>
             <p style="color: #666; font-size: 14px; margin-top: 10px; line-height: 1.6;">${text}</p>
         `;
-
         list.prepend(div); // Adiciona no topo da lista
         this.reset();
     };

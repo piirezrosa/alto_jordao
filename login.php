@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // REDIRECIONAMENTO INTELIGENTE
         if ($_SESSION['usuario_nivel'] === 'admin') {
-            header("Location: admin.php");
+            header("Location: admin_vendas.php");
         } else {
             header("Location: index.php");
         }

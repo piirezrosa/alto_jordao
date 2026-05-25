@@ -264,3 +264,52 @@ function setupKidsFilters() {
         });
     });
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const commentForm = document.getElementById('commentForm');
+    if (commentForm) {
+        commentForm.onsubmit = function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            fetch('salvar_avaliacao.php?ajax=1', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Arquivo salvar_avaliacao.php não encontrado ou erro no servidor.');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    const name = formData.get('nome');
+                    const stars = parseInt(formData.get('estrelas')) || 5;
+                    const text = formData.get('comentario');
+                    const list = document.getElementById('reviewsList');
+                    const noReviews = document.getElementById('noReviewsMessage');
+
+                    if (noReviews) noReviews.remove();
+
+                    const div = document.createElement('div');
+                    div.className = 'review-item';
+                    div.innerHTML = `
+                        <div style="color: #000; margin-bottom: 5px;">${"⭐".repeat(stars)}</div>
+                        <strong style="text-transform: uppercase; font-size: 12px;">${name}</strong>
+                        <p style="color: #666; font-size: 14px; margin-top: 10px; line-height: 1.6;">${text}</p>
+                    `;
+                    list.prepend(div);
+
+                    this.reset();
+                    alert("Obrigado por sua avaliação! Ela foi publicada com sucesso.");
+                } else {
+                    alert("Houve um erro ao salvar sua avaliação." + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Erro na requisição:', error);
+                alert("Erro crítico: Verifique se o arquivo salvar_avaliacao.php existe e está funcionando corretamente.");
+            });
+        };
+    }
+});

@@ -17,7 +17,7 @@ if (!$p) {
 $queryRelacionados = $pdo->prepare("SELECT * FROM produtos WHERE categoria = ? AND id != ? LIMIT 4");
 $queryRelacionados->execute([$p['categoria'] ?? '', $id]);
 $relacionados = $queryRelacionados->fetchAll(PDO::FETCH_ASSOC);
-// BUSCA AVALIAÇÕES DO PRODUTO
+// BUSCA AVALIAÇÕES DO BANCO DE DADOS PARA ESTE PRODUTO ESPECÍFICO
 $queryAv = $pdo->prepare("SELECT * FROM avaliacoes WHERE produto_id = ? ORDER BY data_envio DESC");
 $queryAv->execute([$id]);
 $avaliacoes = $queryAv->fetchAll(PDO::FETCH_ASSOC);
@@ -161,8 +161,9 @@ $produtoJson = htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8');
 <section class="reviews-section">
     <div class="form-review">
         <h3 style="font-weight: 900; margin-bottom: 20px;">DEIXE SUA OPINIÃO</h3>
-        <form id="commentForm">
-            <input type="text" id="revName" placeholder="Seu nome" required>
+        <form id="commentForm" action="salvar_avaliacao.php" method="POST">
+            <input type="hidden" id="produto_id" value="<?= $id ?>">
+            <input type="text" name="nome" placeholder="Seu nome" required>
             <select id="revStars">
                 <option value="5">⭐⭐⭐⭐⭐ (Excelente)</option>
                 <option value="4">⭐⭐⭐⭐ (Muito bom)</option>
@@ -170,7 +171,7 @@ $produtoJson = htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8');
                 <option value="2">⭐⭐ (Regular)</option>
                 <option value="1">⭐ (Péssimo)</option>
             </select>
-            <textarea id="revText" rows="4" placeholder="O que você achou do produto?" required></textarea>
+            <textarea name="comentario" rows="4" placeholder="O que você achou do produto?" required></textarea>
             <button type="submit" class="btn-add-cart" style="margin-top: 0; padding: 15px;">PUBLICAR</button>
         </form>
     </div>
@@ -179,13 +180,19 @@ $produtoJson = htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8');
         <?php if (count($avaliacoes) > 0): ?>
             <?php foreach ($avaliacoes as $av): ?>
                 <div class="review-item">
-                    <div style="color: #000; margin-bottom: 5px;"><?= str_repeat("⭐", $av['estrelas']) ?></div>
-                    <strong style="text-transform: uppercase; font-size: 12px;"><?= htmlspecialchars($av['nome']) ?></strong>
-                    <p style="color: #666; font-size: 14px; margin-top: 10px; line-height: 1.6;"><?= htmlspecialchars($av['comentario']) ?></p>
+                    <div style="color: #000; margin-bottom: 5px;">
+                        <?= str_repeat("⭐", (int)$av['estrelas']) ?>
+                    </div>
+                    <strong style="text-transform: uppercase; font-size: 12px;">
+                        <?= htmlspecialchars($av['nome']) ?>
+                    </strong>
+                    <p style="color: #666; font-size: 14px; margin-top: 10px; line-height: 1.6;">
+                        <?= htmlspecialchars($av['comentario']) ?>
+                    </p>
                 </div>
             <?php endforeach; ?>
         <?php else: ?>
-            <p id="noReviews" style="color: #999; font-style: italic;">Nenhuma avaliação ainda. Seja o primeiro a avaliar este produto!</p>
+            <p id="noReviews" style="color: #999; font-style: italic;">Nenhuma avaliação ainda. Seja o primeiro a avaliar!</p>
         <?php endif; ?>
     </div>
 </section>

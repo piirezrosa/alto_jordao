@@ -25,7 +25,6 @@ function getCaminhoImagem($img) {
 <body>
 
     <?php include 'header.php'; ?>
-
     <main>
         <section class="hero" style="background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1600'); height: 500px; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; text-align: center; color: white;">
             <div class="hero-content">
@@ -78,7 +77,7 @@ function getCaminhoImagem($img) {
                                     R$ <?= number_format($p['preco'], 2, ',', '.') ?>
                                 </p>
 
-                                <?php if (isset($_SESSION['usuario_nivel']) && $_SESSION['usuario_nivel'] === 'admin'): ?>
+                                <?php if (isset($_SESSION['usuario_nivel']) && ($_SESSION['usuario_nivel'] === 'admin' || $_SESSION['usuario_nivel'] === 'superadmin')): ?>
                                     <div class="admin-actions" style="margin-top: 15px; display: flex; gap: 8px; border-top: 1px solid #eee; padding-top: 10px;">
                                         <a href="editar_produto.php?id=<?= $p['id'] ?>" 
                                            style="flex: 1; background: #f1f1f1; color: #000; text-align: center; padding: 10px; border-radius: 5px; text-decoration: none; font-size: 11px; font-weight: bold;">

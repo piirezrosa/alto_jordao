@@ -30,13 +30,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['usuario_id'] = $usuario['id'];
         $_SESSION['usuario_nome'] = $usuario['nome'];
         
-        // Verifique se no seu banco a coluna se chama 'nivel' ou 'usuario_nivel'
-        // Ajustei para 'nivel' conforme o seu código original
         $_SESSION['usuario_nivel'] = $usuario['nivel']; 
 
         // REDIRECIONAMENTO INTELIGENTE
-        if ($_SESSION['usuario_nivel'] === 'admin') {
-            header("Location: admin_vendas.php");
+        if ($_SESSION['usuario_nivel'] === 'superadmin' || $_SESSION['usuario_nivel'] === 'admin') {
+            header("Location: admin_dashboard.php");
         } else {
             header("Location: index.php");
         }

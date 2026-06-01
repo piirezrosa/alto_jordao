@@ -8,13 +8,11 @@ if (session_status() === PHP_SESSION_NONE) {
 <nav class="utility-nav">
     <div class="utility-container">
         <div class="utility-links">
-            <a href="ajuda.php">Ajuda</a>
-            
+            <a href="ajuda.php">Ajuda</a>            
             <?php if(isset($_SESSION['usuario_id'])): ?>
                 <?php if(isset($_SESSION['usuario_nivel']) && $_SESSION['usuario_nivel'] === 'admin'): ?>
-                    <a href="admin_vendas.php" style="margin-left: 15px; color: #ff4d4d; font-weight: 700; text-decoration: none;">⚙️ PAINEL ADMIN</a>
+                    <a href="admin_dashboard.php" style="margin-left: 15px; color: #ff4d4d; font-weight: 700; text-decoration: none;">⚙️ PAINEL ADMIN</a>
                 <?php endif; ?>
-
                 <span class="user-welcome" style="margin-left: 15px;">oi, <strong><?= explode(' ', $_SESSION['usuario_nome'])[0]; ?></strong></span>
             <?php endif; ?>
         </div>

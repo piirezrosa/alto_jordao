@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['usuario_nivel'] = strtolower($usuario['nivel']); // Padroniza para minúsculo
 
         // 4. Redirecionamento Inteligente
-        if ($_SESSION['usuario_nivel'] === 'admin') {
+        if ($_SESSION['usuario_nivel'] === 'superadmin' || $_SESSION['usuario_nivel'] === 'admin') {
             header("Location: dashboard_admin.php");
         } else {
             // Se for cliente, vai para a Home

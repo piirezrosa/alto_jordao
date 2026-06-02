@@ -10,7 +10,6 @@ if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], 
 if (isset($_POST['atualizar_status'])) {
     $stmt = $pdo->prepare("UPDATE pedidos SET status = ?, codigo_rastreio = ?, transportadora = ? WHERE id = ?");
     $stmt->execute([$_POST['status'], $_POST['codigo_rastreio'] ?? null, $_POST['transportadora'] ?? null, $_POST['pedido_id']]);
-    // Log
     $log = $pdo->prepare("INSERT INTO logs_sistema (usuario_id, acao, tabela, registro_id, detalhes, ip) VALUES (?,?,?,?,?,?)");
     $log->execute([$_SESSION['usuario_id'] ?? null, 'pedido_status_atualizado', 'pedidos', $_POST['pedido_id'], 'Novo status: '.$_POST['status'], $_SERVER['REMOTE_ADDR']]);
     header("Location: admin_pedidos.php?msg=atualizado"); exit();
@@ -25,7 +24,7 @@ $pag           = max(1, (int)($_GET['pag'] ?? 1));
 $por_pag       = 15;
 $offset        = ($pag - 1) * $por_pag;
 
-$where = ["DATE(ped.data_pedido) BETWEEN ? AND ?"];
+$where  = ["DATE(ped.data_pedido) BETWEEN ? AND ?"];
 $params = [$data_ini, $data_fim];
 
 if ($status_filtro) { $where[] = "ped.status = ?"; $params[] = $status_filtro; }
@@ -34,7 +33,7 @@ if ($busca) {
     $params[] = "%$busca%"; $params[] = "%$busca%"; $params[] = "%$busca%";
 }
 
-$sql_where = implode(' AND ', $where);
+$sql_where  = implode(' AND ', $where);
 
 $total_rows = $pdo->prepare("SELECT COUNT(*) FROM pedidos ped JOIN usuarios u ON ped.usuario_id = u.id WHERE $sql_where");
 $total_rows->execute($params);
@@ -69,146 +68,345 @@ $contagens = [];
 foreach (['pendente','pago','em_separacao','enviado','entregue','cancelado'] as $s) {
     $contagens[$s] = $pdo->query("SELECT COUNT(*) FROM pedidos WHERE status='$s'")->fetchColumn();
 }
+
+// Badges de devoluções e estoque para sidebar
+$devolucoes_pend = $pdo->query("SELECT COUNT(*) FROM devolucoes WHERE status='pendente'")->fetchColumn();
+$estoque_critico = $pdo->query("SELECT COUNT(*) FROM produtos WHERE estoque<=3 AND ativo=1")->fetchColumn();
+$p_pendente_sb   = $contagens['pendente'];
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-<meta charset="UTF-8">
-<title>Pedidos | Alto Jordão Admin</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<style>
-<?php include_styles: ?>
-:root {
-    --sidebar-w: 270px; --bg: #0a0a0a; --surface: #111; --surface2: #1a1a1a;
-    --border: #222; --accent2: #c8ff00; --muted: #555; --text: #f0f0f0;
-    --text2: #888; --danger: #ff4d4d; --success: #22c55e; --warning: #f59e0b;
-    --info: #3b82f6; --radius: 16px; --radius-lg: 24px;
-}
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; font-size: 14px; }
-.sidebar { width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border); position: fixed; top: 0; left: 0; bottom: 0; display: flex; flex-direction: column; padding: 28px 20px; z-index: 100; overflow-y: auto; }
-.sb-logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px; letter-spacing: 3px; color: var(--text); text-transform: uppercase; padding-bottom: 28px; border-bottom: 1px solid var(--border); margin-bottom: 28px; }
-.sb-logo .dot { width: 8px; height: 8px; background: var(--accent2); border-radius: 50%; display: inline-block; margin-right: 10px; }
-.sb-section { margin-bottom: 24px; }
-.sb-section-title { font-size: 9px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; padding-left: 12px; }
-.sb-item { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: 10px; color: var(--text2); text-decoration: none; font-size: 13px; font-weight: 500; transition: all 0.2s; margin-bottom: 3px; }
-.sb-item:hover { background: var(--surface2); color: var(--text); }
-.sb-item.active { background: var(--accent2); color: #000; font-weight: 700; }
-.sb-badge { margin-left: auto; background: var(--danger); color: #fff; font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 20px; }
-.sb-footer { margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border); }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pedidos | Alto Jordão Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=<?= time() ?>">
+    <link rel="stylesheet" href="admin_style.css?v=<?= time() ?>">
+    <style>
+        /* ── EXTRAS EXCLUSIVOS DA PÁGINA DE PEDIDOS ── */
 
-.main { margin-left: var(--sidebar-w); flex: 1; padding: 36px 40px; }
-.page-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 26px; margin-bottom: 6px; }
-.page-sub   { color: var(--text2); font-size: 13px; margin-bottom: 32px; }
+        /* Tabs de status */
+        .status-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
 
-/* STATUS TABS */
-.status-tabs { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
-.tab-btn {
-    padding: 8px 18px; border-radius: 50px; border: 1px solid var(--border);
-    background: var(--surface); color: var(--text2); font-size: 12px; font-weight: 600;
-    cursor: pointer; text-decoration: none; transition: 0.2s; white-space: nowrap;
-}
-.tab-btn:hover { border-color: #444; color: var(--text); }
-.tab-btn.active { background: var(--accent2); color: #000; border-color: var(--accent2); font-weight: 700; }
+        .tab-btn {
+            padding: 9px 20px;
+            border-radius: 50px;
+            border: 1px solid var(--border);
+            background: var(--white);
+            color: var(--text2);
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
 
-/* FILTROS */
-.filter-bar {
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 20px 24px; display: flex; gap: 16px; align-items: flex-end; margin-bottom: 24px; flex-wrap: wrap;
-}
-.filter-group { display: flex; flex-direction: column; gap: 6px; }
-.filter-group label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-.filter-group input, .filter-group select {
-    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
-    color: var(--text); padding: 10px 14px; font-family: inherit; font-size: 13px; min-width: 140px;
-}
-.btn-filter { background: var(--accent2); color: #000; border: none; padding: 10px 22px; border-radius: 50px; font-weight: 700; font-size: 12px; cursor: pointer; }
+        .tab-btn:hover { background: var(--grey-bg); color: var(--black); }
 
-/* TABELA */
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 28px; }
-.data-table { width: 100%; border-collapse: collapse; }
-.data-table th { text-align: left; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; padding: 0 12px 14px; border-bottom: 1px solid var(--border); }
-.data-table td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
-.data-table tr:last-child td { border-bottom: none; }
-.data-table tbody tr:hover td { background: rgba(255,255,255,0.02); cursor: pointer; }
+        .tab-btn.active {
+            background: var(--black);
+            color: var(--white);
+            border-color: var(--black);
+        }
 
-.badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
-.badge-pendente    { background: rgba(245,158,11,0.15);  color: #f59e0b; }
-.badge-pago        { background: rgba(59,130,246,0.15);  color: #60a5fa; }
-.badge-em_separacao{ background: rgba(168,85,247,0.15);  color: #c084fc; }
-.badge-enviado     { background: rgba(99,102,241,0.15);  color: #818cf8; }
-.badge-entregue    { background: rgba(34,197,94,0.15);   color: #4ade80; }
-.badge-cancelado   { background: rgba(255,77,77,0.15);   color: #ff6b6b; }
+        /* Barra de filtros */
+        .filter-bar {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 30px;
+            padding: 20px 28px;
+            display: flex;
+            gap: 16px;
+            align-items: flex-end;
+            margin-bottom: 22px;
+            flex-wrap: wrap;
+            box-shadow: var(--shadow);
+        }
 
-/* PAGINAÇÃO */
-.pagination { display: flex; gap: 8px; justify-content: center; margin-top: 24px; }
-.page-btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text2); text-decoration: none; font-size: 12px; font-weight: 600; transition: 0.2s; }
-.page-btn:hover, .page-btn.active { background: var(--accent2); color: #000; border-color: var(--accent2); }
+        .filter-group { display: flex; flex-direction: column; gap: 7px; }
 
-/* MODAL DE DETALHES */
-.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 200; align-items: center; justify-content: center; }
-.modal-overlay.open { display: flex; }
-.modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 36px; max-width: 700px; width: 95%; max-height: 90vh; overflow-y: auto; position: relative; }
-.modal-close { position: absolute; top: 20px; right: 20px; background: var(--surface2); border: none; color: var(--text2); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+        .filter-group label {
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
 
-.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
-.detail-item span { display: block; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-.detail-item p { font-weight: 600; font-size: 14px; }
+        .filter-group input,
+        .filter-group select {
+            background: var(--grey-bg);
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            color: var(--black);
+            padding: 10px 16px;
+            font-family: var(--font-main);
+            font-size: 13px;
+            min-width: 150px;
+            outline: none;
+            transition: var(--transition);
+        }
 
-.item-row { display: flex; gap: 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
-.item-row:last-child { border-bottom: none; }
-.item-img { width: 50px; height: 50px; border-radius: 8px; background: var(--surface2); object-fit: cover; }
+        .filter-group input:focus,
+        .filter-group select:focus {
+            border-color: var(--black);
+            background: var(--white);
+        }
 
-/* FORM DE STATUS */
-.status-form { background: var(--surface2); border-radius: var(--radius); padding: 20px; margin-top: 20px; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.form-group { display: flex; flex-direction: column; gap: 8px; }
-.form-group label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
-.form-group select, .form-group input {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-    color: var(--text); padding: 12px 14px; font-family: inherit; font-size: 13px;
-}
-.btn-save { background: var(--accent2); color: #000; border: none; padding: 14px 28px; border-radius: 50px; font-weight: 700; cursor: pointer; font-size: 12px; margin-top: 16px; width: 100%; }
+        /* Paginação */
+        .pagination {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 28px;
+        }
 
-.msg-ok { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: #4ade80; padding: 12px 20px; border-radius: 10px; margin-bottom: 20px; font-size: 13px; font-weight: 600; }
-</style>
+        .page-btn {
+            padding: 9px 16px;
+            border-radius: 50px;
+            border: 1px solid var(--border);
+            background: var(--white);
+            color: var(--text2);
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 700;
+            transition: var(--transition);
+        }
+
+        .page-btn:hover,
+        .page-btn.active {
+            background: var(--black);
+            color: var(--white);
+            border-color: var(--black);
+        }
+
+        /* Modal de detalhes */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.35);
+            backdrop-filter: blur(4px);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.open { display: flex; }
+
+        .modal-box {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 40px;
+            max-width: 680px;
+            width: 95%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.12);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px; right: 20px;
+            background: var(--grey-bg);
+            border: 1px solid var(--border);
+            color: var(--text2);
+            width: 34px; height: 34px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+        }
+
+        .modal-close:hover { background: var(--black); color: var(--white); }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            margin-bottom: 28px;
+        }
+
+        .detail-item span {
+            display: block;
+            font-size: 10px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+            font-weight: 800;
+        }
+
+        .detail-item p { font-weight: 700; font-size: 13px; }
+
+        /* Itens do pedido no modal */
+        .item-row {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+            padding: 13px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .item-row:last-child { border-bottom: none; }
+
+        .item-img {
+            width: 52px; height: 52px;
+            border-radius: 14px;
+            background: var(--grey-bg);
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        /* Formulário de atualização de status */
+        .status-form {
+            background: var(--grey-bg);
+            border-radius: 20px;
+            padding: 22px;
+            margin-top: 22px;
+        }
+
+        .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+        .form-group-modal { display: flex; flex-direction: column; gap: 7px; }
+
+        .form-group-modal label {
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .form-group-modal select,
+        .form-group-modal input {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            color: var(--black);
+            padding: 12px 16px;
+            font-family: var(--font-main);
+            font-size: 13px;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        .form-group-modal select:focus,
+        .form-group-modal input:focus { border-color: var(--black); }
+
+        /* Mensagem de sucesso */
+        .msg-ok {
+            background: #e8f5e9;
+            border: 1px solid #c8e6c9;
+            color: var(--success);
+            padding: 13px 22px;
+            border-radius: 50px;
+            margin-bottom: 22px;
+            font-size: 13px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Linha clicável da tabela */
+        .data-table tbody tr { cursor: pointer; }
+    </style>
 </head>
-<body>
+<body class="admin-page">
 
-<aside class="sidebar">
-    <div class="sb-logo"><span class="dot"></span> ALTO JORDÃO</div>
+<!-- ── SIDEBAR ───────────────────────────────── -->
+<aside class="admin-sidebar">
+    <div class="sb-logo">ALTO JORDÃO</div>
+
     <div class="sb-section">
-        <p class="sb-section-title">Visão Geral</p>
+        <span class="sb-section-title">Visão Geral</span>
         <a href="admin_dashboard.php" class="sb-item">📊 Dashboard</a>
     </div>
+
     <div class="sb-section">
-        <p class="sb-section-title">Vendas</p>
-        <a href="admin_pedidos.php"   class="sb-item active">🛒 Pedidos</a>
-        <a href="admin_vendas.php"    class="sb-item">💰 Financeiro</a>
-        <a href="entregas.php"        class="sb-item">📦 Logística</a>
-        <a href="admin_devolucoes.php" class="sb-item">🔄 Devoluções</a>
+        <span class="sb-section-title">Vendas</span>
+        <a href="admin_pedidos.php" class="sb-item active">
+            🛒 Pedidos
+            <?php if($p_pendente_sb > 0): ?><span class="sb-badge"><?= $p_pendente_sb ?></span><?php endif; ?>
+        </a>
+        <a href="admin_vendas.php"     class="sb-item">💰 Financeiro</a>
+        <a href="entregas.php"         class="sb-item">📦 Logística</a>
+        <a href="admin_devolucoes.php" class="sb-item">
+            🔄 Devoluções
+            <?php if($devolucoes_pend > 0): ?><span class="sb-badge"><?= $devolucoes_pend ?></span><?php endif; ?>
+        </a>
     </div>
+
     <div class="sb-section">
-        <p class="sb-section-title">Catálogo</p>
-        <a href="admin_produtos.php"  class="sb-item">👕 Produtos</a>
-        <a href="admin_estoque.php"   class="sb-item">📋 Estoque</a>
+        <span class="sb-section-title">Catálogo</span>
+        <a href="admin_produtos.php"    class="sb-item">👕 Produtos</a>
+        <a href="admin_estoque.php"     class="sb-item">
+            📋 Estoque
+            <?php if($estoque_critico > 0): ?><span class="sb-badge"><?= $estoque_critico ?></span><?php endif; ?>
+        </a>
+        <a href="admin_categorias.php"  class="sb-item">🏷️ Categorias</a>
+        <a href="admin_colecoes.php"    class="sb-item">✨ Coleções</a>
+        <a href="admin_marcas.php"      class="sb-item">🔖 Marcas</a>
         <a href="cadastrar_produto.php" class="sb-item">➕ Novo Produto</a>
     </div>
+
     <div class="sb-section">
-        <p class="sb-section-title">Usuários</p>
-        <a href="admin_clientes.php"  class="sb-item">👥 Clientes</a>
-        <a href="admin_admins.php"    class="sb-item">🛡️ Admins</a>
+        <span class="sb-section-title">Usuários</span>
+        <a href="admin_clientes.php" class="sb-item">👥 Clientes</a>
+        <a href="admin_admins.php"   class="sb-item">🛡️ Administradores</a>
     </div>
+
+    <div class="sb-section">
+        <span class="sb-section-title">Marketing</span>
+        <a href="admin_cupons.php"     class="sb-item">🎟️ Cupons</a>
+        <a href="admin_avaliacoes.php" class="sb-item">⭐ Avaliações</a>
+    </div>
+
+    <div class="sb-section">
+        <span class="sb-section-title">Sistema</span>
+        <a href="admin_relatorios.php"    class="sb-item">📈 Relatórios</a>
+        <a href="admin_logs.php"          class="sb-item">🔍 Logs & Auditoria</a>
+        <a href="admin_configuracoes.php" class="sb-item">⚙️ Configurações</a>
+    </div>
+
     <div class="sb-footer">
+        <div class="sb-user">
+            <div class="sb-avatar"><?= strtoupper(substr($_SESSION['usuario_nome'] ?? 'A', 0, 1)) ?></div>
+            <div class="sb-user-info">
+                <small><?= strtoupper($_SESSION['usuario_nivel'] ?? 'admin') ?></small>
+                <strong><?= explode(' ', $_SESSION['usuario_nome'] ?? 'Admin')[0] ?></strong>
+            </div>
+        </div>
         <a href="index.php"  class="sb-item">🏪 Ver Loja</a>
-        <a href="logout.php" class="sb-item" style="color: #ff4d4d;">🚪 Sair</a>
+        <a href="logout.php" class="sb-item" style="color: var(--danger);">🚪 Sair</a>
     </div>
 </aside>
 
-<main class="main">
+<!-- ── CONTEÚDO ───────────────────────────────── -->
+<main class="admin-main">
 
-    <h1 class="page-title">Gestão de Pedidos</h1>
-    <p class="page-sub">Gerencie, atualize e acompanhe todos os pedidos em tempo real.</p>
+    <div class="admin-topbar">
+        <div>
+            <h1>Gestão de Pedidos</h1>
+            <p>Gerencie, atualize e acompanhe todos os pedidos em tempo real.</p>
+        </div>
+        <div class="topbar-actions">
+            <a href="admin_relatorios.php" class="btn-admin-ghost">📥 Exportar</a>
+        </div>
+    </div>
 
     <?php if(isset($_GET['msg'])): ?>
     <div class="msg-ok">✓ Status do pedido atualizado com sucesso!</div>
@@ -221,7 +419,14 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
             Todos (<?= array_sum($contagens) ?>)
         </a>
         <?php
-        $labels = ['pendente'=>'⏳ Pendente','pago'=>'💰 Pago','em_separacao'=>'📦 Em Separação','enviado'=>'🚀 Enviado','entregue'=>'✅ Entregue','cancelado'=>'❌ Cancelado'];
+        $labels = [
+            'pendente'     => '⏳ Pendente',
+            'pago'         => '💰 Pago',
+            'em_separacao' => '📦 Em Separação',
+            'enviado'      => '🚀 Enviado',
+            'entregue'     => '✅ Entregue',
+            'cancelado'    => '❌ Cancelado',
+        ];
         foreach($labels as $s => $l):
         ?>
         <a href="?status=<?= $s ?>&data_ini=<?= $data_ini ?>&data_fim=<?= $data_fim ?>"
@@ -231,12 +436,14 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
         <?php endforeach; ?>
     </div>
 
-    <!-- BARRA DE FILTROS -->
+    <!-- FILTROS -->
     <form method="GET" class="filter-bar">
-        <?php if($status_filtro): ?><input type="hidden" name="status" value="<?= $status_filtro ?>"><?php endif; ?>
+        <?php if($status_filtro): ?>
+        <input type="hidden" name="status" value="<?= $status_filtro ?>">
+        <?php endif; ?>
         <div class="filter-group">
             <label>Busca</label>
-            <input type="text" name="busca" value="<?= htmlspecialchars($busca) ?>" placeholder="Nome, ID ou Rastreio">
+            <input type="text" name="busca" value="<?= htmlspecialchars($busca) ?>" placeholder="Nome, ID ou rastreio">
         </div>
         <div class="filter-group">
             <label>Data Início</label>
@@ -246,11 +453,12 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
             <label>Data Fim</label>
             <input type="date" name="data_fim" value="<?= $data_fim ?>">
         </div>
-        <button type="submit" class="btn-filter">Filtrar</button>
+        <button type="submit" class="btn-admin-primary">Filtrar</button>
+        <a href="admin_pedidos.php" class="btn-admin-ghost">Limpar</a>
     </form>
 
-    <!-- TABELA DE PEDIDOS -->
-    <div class="card">
+    <!-- TABELA -->
+    <div class="admin-card">
         <table class="data-table">
             <thead>
                 <tr>
@@ -266,27 +474,31 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
             </thead>
             <tbody>
                 <?php foreach($pedidos as $ped): ?>
-                <tr onclick="abrirDetalhe(<?= $ped['id'] ?>)">
-                    <td style="font-weight:800; color:var(--muted);">#<?= str_pad($ped['id'],4,'0',STR_PAD_LEFT) ?></td>
+                <tr onclick="window.location='?id=<?= $ped['id'] ?>&data_ini=<?= $data_ini ?>&data_fim=<?= $data_fim ?>&status=<?= $status_filtro ?>'">
+                    <td style="font-weight:900; color:var(--muted);">#<?= str_pad($ped['id'],4,'0',STR_PAD_LEFT) ?></td>
                     <td>
-                        <div style="font-weight:600;"><?= htmlspecialchars($ped['cliente']) ?></div>
+                        <div style="font-weight:700;"><?= htmlspecialchars($ped['cliente']) ?></div>
                         <div style="font-size:11px; color:var(--text2);"><?= htmlspecialchars($ped['cliente_email']) ?></div>
                     </td>
-                    <td style="text-transform:uppercase; font-size:12px; color:var(--text2);"><?= $ped['forma_pagamento'] ?></td>
-                    <td style="font-weight:700;">R$ <?= number_format($ped['total'],2,',','.') ?></td>
+                    <td style="text-transform:uppercase; font-size:12px; color:var(--text2); font-weight:600;"><?= $ped['forma_pagamento'] ?></td>
+                    <td style="font-weight:800;">R$ <?= number_format($ped['total'],2,',','.') ?></td>
                     <td><span class="badge badge-<?= $ped['status'] ?>"><?= str_replace('_',' ',$ped['status']) ?></span></td>
                     <td style="font-size:12px; color:var(--text2);"><?= $ped['codigo_rastreio'] ?: '—' ?></td>
                     <td style="font-size:12px; color:var(--text2);"><?= date('d/m/Y H:i', strtotime($ped['data_pedido'])) ?></td>
                     <td onclick="event.stopPropagation()">
                         <a href="?id=<?= $ped['id'] ?>&data_ini=<?= $data_ini ?>&data_fim=<?= $data_fim ?>&status=<?= $status_filtro ?>"
-                           style="color:var(--accent2); font-size:11px; font-weight:700; text-decoration:none;">
+                           style="color:var(--black); font-size:11px; font-weight:800; text-decoration:none; border-bottom: 1px solid var(--black);">
                            Gerenciar →
                         </a>
                     </td>
                 </tr>
                 <?php endforeach; ?>
                 <?php if(empty($pedidos)): ?>
-                <tr><td colspan="8" style="text-align:center; color:var(--muted); padding:40px;">Nenhum pedido encontrado.</td></tr>
+                <tr>
+                    <td colspan="8" style="text-align:center; color:var(--muted); padding:50px; font-size:13px;">
+                        Nenhum pedido encontrado para o período selecionado.
+                    </td>
+                </tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -304,24 +516,26 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 
 </main>
 
-<!-- ════ MODAL DE DETALHES / EDIÇÃO ════ -->
+<!-- ── MODAL DE DETALHES / EDIÇÃO ─────────────── -->
 <?php if($pedido_det): ?>
-<div class="modal-overlay open" id="modalDetalhe">
+<div class="modal-overlay open">
     <div class="modal-box">
-        <button class="modal-close" onclick="fecharModal()">×</button>
-        
-        <h2 style="font-family:'Syne',sans-serif; font-weight:800; margin-bottom:6px;">
+        <button class="modal-close" onclick="window.location='admin_pedidos.php?status=<?= $status_filtro ?>&data_ini=<?= $data_ini ?>&data_fim=<?= $data_fim ?>'">×</button>
+
+        <h2 style="font-weight:900; font-size:22px; letter-spacing:-0.5px; margin-bottom:4px; text-transform:uppercase;">
             Pedido #<?= str_pad($pedido_det['id'],4,'0',STR_PAD_LEFT) ?>
         </h2>
-        <p style="color:var(--text2); font-size:12px; margin-bottom:24px;">
-            <?= date('d/m/Y H:i', strtotime($pedido_det['data_pedido'])) ?>
-            &mdash; <span class="badge badge-<?= $pedido_det['status'] ?>"><?= str_replace('_',' ',$pedido_det['status']) ?></span>
+        <p style="color:var(--text2); font-size:12px; margin-bottom:24px; display:flex; align-items:center; gap:10px;">
+            <?= date('d/m/Y \à\s H:i', strtotime($pedido_det['data_pedido'])) ?>
+            &nbsp;&mdash;&nbsp;
+            <span class="badge badge-<?= $pedido_det['status'] ?>"><?= str_replace('_',' ',$pedido_det['status']) ?></span>
         </p>
 
-        <!-- DADOS -->
+        <!-- DADOS DO CLIENTE E ENTREGA -->
+        <div style="font-size:10px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:14px;">Dados do Cliente</div>
         <div class="detail-grid">
             <div class="detail-item">
-                <span>Cliente</span>
+                <span>Nome</span>
                 <p><?= htmlspecialchars($pedido_det['cliente']) ?></p>
             </div>
             <div class="detail-item">
@@ -333,40 +547,44 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
                 <p><?= $pedido_det['telefone'] ?: '—' ?></p>
             </div>
             <div class="detail-item">
-                <span>Pagamento</span>
-                <p style="text-transform:uppercase;"><?= $pedido_det['forma_pagamento'] ?></p>
+                <span>Forma de Pagamento</span>
+                <p style="text-transform:uppercase; font-weight:800;"><?= $pedido_det['forma_pagamento'] ?></p>
             </div>
             <div class="detail-item" style="grid-column: span 2;">
                 <span>Endereço de Entrega</span>
                 <p>
-                    <?= htmlspecialchars($pedido_det['end_endereco'] ?? '') ?>
-                    <?= $pedido_det['end_numero'] ? ', ' . $pedido_det['end_numero'] : '' ?>
-                    — <?= htmlspecialchars($pedido_det['end_bairro'] ?? '') ?>,
+                    <?= htmlspecialchars($pedido_det['end_endereco'] ?? '—') ?>
+                    <?= $pedido_det['end_numero']   ? ', ' . $pedido_det['end_numero']   : '' ?>
+                    <?= $pedido_det['end_bairro']   ? ' — ' . $pedido_det['end_bairro']  : '' ?>,
                     <?= htmlspecialchars($pedido_det['end_cidade'] ?? '') ?>/<?= $pedido_det['end_estado'] ?? '' ?>
-                    — CEP <?= $pedido_det['end_cep'] ?? '' ?>
+                    &nbsp;— CEP <?= $pedido_det['end_cep'] ?? '—' ?>
                 </p>
             </div>
         </div>
 
-        <!-- ITENS -->
-        <div style="font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px;">Itens do Pedido</div>
+        <!-- ITENS DO PEDIDO -->
+        <div style="font-size:10px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:14px;">Itens do Pedido</div>
+
         <?php foreach($itens_det as $item): ?>
         <div class="item-row">
-            <img class="item-img" src="img/produtos/<?= $item['imagem'] ?>" onerror="this.style.display='none'">
+            <img class="item-img"
+                 src="img/produtos/<?= $item['imagem'] ?>"
+                 onerror="this.style.background='var(--grey-bg)'; this.style.display='block';">
             <div style="flex:1;">
-                <div style="font-weight:600;"><?= htmlspecialchars($item['produto_nome']) ?></div>
-                <div style="font-size:11px; color:var(--text2);"><?= $item['variacoes'] ?></div>
+                <div style="font-weight:700; font-size:13px;"><?= htmlspecialchars($item['produto_nome']) ?></div>
+                <div style="font-size:11px; color:var(--text2); margin-top:2px;"><?= $item['variacoes'] ?></div>
             </div>
             <div style="text-align:right;">
-                <div style="font-weight:700;"><?= $item['quantidade'] ?>x</div>
+                <div style="font-weight:800;"><?= $item['quantidade'] ?>×</div>
                 <div style="font-size:12px; color:var(--text2);">R$ <?= number_format($item['preco_unitario'],2,',','.') ?></div>
             </div>
         </div>
         <?php endforeach; ?>
 
-        <div style="display:flex; justify-content:space-between; padding: 16px 0 0; border-top: 1px solid var(--border); margin-top: 8px;">
-            <span style="color:var(--text2);">Total</span>
-            <span style="font-family:'Syne',sans-serif; font-weight:800; font-size:20px; color:var(--accent2);">
+        <!-- TOTAL -->
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 0 0; margin-top:8px; border-top:1px solid var(--border);">
+            <span style="font-size:12px; color:var(--text2); font-weight:700; text-transform:uppercase;">Total do Pedido</span>
+            <span style="font-size:22px; font-weight:900; letter-spacing:-0.5px;">
                 R$ <?= number_format($pedido_det['total'],2,',','.') ?>
             </span>
         </div>
@@ -374,40 +592,39 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
         <!-- FORMULÁRIO DE ATUALIZAÇÃO -->
         <form method="POST" class="status-form">
             <input type="hidden" name="pedido_id" value="<?= $pedido_det['id'] ?>">
-            <div style="font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:14px;">Atualizar Pedido</div>
-            <div class="form-row">
-                <div class="form-group">
+
+            <div style="font-size:10px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:16px;">Atualizar Pedido</div>
+
+            <div class="form-row-2">
+                <div class="form-group-modal">
                     <label>Novo Status</label>
                     <select name="status">
                         <?php foreach(['pendente','pago','em_separacao','enviado','entregue','cancelado'] as $s): ?>
                         <option value="<?= $s ?>" <?= $pedido_det['status'] == $s ? 'selected' : '' ?>>
-                            <?= str_replace('_',' ', ucfirst($s)) ?>
+                            <?= ucfirst(str_replace('_',' ',$s)) ?>
                         </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group-modal">
                     <label>Transportadora</label>
                     <input type="text" name="transportadora" value="<?= htmlspecialchars($pedido_det['transportadora'] ?? '') ?>" placeholder="Ex: Correios, Jadlog">
                 </div>
             </div>
-            <div class="form-group" style="margin-top:12px;">
+
+            <div class="form-group-modal" style="margin-top:14px;">
                 <label>Código de Rastreio</label>
                 <input type="text" name="codigo_rastreio" value="<?= htmlspecialchars($pedido_det['codigo_rastreio'] ?? '') ?>" placeholder="Ex: BR123456789BR">
             </div>
-            <button type="submit" name="atualizar_status" class="btn-save">💾 Salvar Alterações</button>
+
+            <button type="submit" name="atualizar_status" class="btn-black-capsule" style="margin-top:18px; font-size:12px; letter-spacing:1px;">
+                💾 Salvar Alterações
+            </button>
         </form>
     </div>
 </div>
 <?php endif; ?>
 
-<script>
-function abrirDetalhe(id) {
-    window.location.href = '?id=' + id + '&status=<?= $status_filtro ?>&data_ini=<?= $data_ini ?>&data_fim=<?= $data_fim ?>';
-}
-function fecharModal() {
-    window.location.href = '?status=<?= $status_filtro ?>&data_ini=<?= $data_ini ?>&data_fim=<?= $data_fim ?>';
-}
-</script>
+<script src="script.js?v=<?= time() ?>"></script>
 </body>
 </html>

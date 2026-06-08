@@ -3,66 +3,71 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php'; 
 
 // Segurança: Bloqueia quem não é admin
-if (!isset($_SESSION['usuario_nivel']) || $_SESSION['usuario_nivel'] !== 'admin') {
+if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin', 'superadmin'])) {
     header("Location: login.php"); exit();
+}
+
+function q($pdo, $sql, $p = []) {
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($p);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 // Pega as datas do filtro ou define um padrão (últimos 30 dias)
 $data_inicio = isset($_GET['data_inicio']) ? $_GET['data_inicio'] : date('Y-m-d', strtotime('-30 days'));
 $data_fim = isset($_GET['data_fim']) ? $_GET['data_fim'] : date('Y-m-d');
 
+$p_pendente = q($pdo, "SELECT * FROM pedidos WHERE status = 'pendente'")->fetchColumn();
+$estoque_critico = q($pdo, "SELECT * FROM produtos WHERE estoque <= 3 AND ativo = 1")->fetchColumn();
+$devolucoes_pend = q($pdo, "SELECT * FROM devolucoes WHERE status = 'pendente'")->fetchColumn();
+
 try {
     // 1. Vendas PAGAS no período
-    $stmtPagas = $pdo->prepare("SELECT p.*, u.nome as cliente FROM pedidos p 
+    $vendasPagas = q($pdo, "SELECT p.*, u.nome as cliente FROM pedidos p 
                                 JOIN usuarios u ON p.usuario_id = u.id 
                                 WHERE p.status = 'pago' AND DATE(p.data_pedido) BETWEEN ? AND ? 
-                                ORDER BY p.data_pedido DESC");
-    $stmtPagas->execute([$data_inicio, $data_fim]);
-    $vendasPagas = $stmtPagas->fetchAll(PDO::FETCH_ASSOC);
+                                ORDER BY p.data_pedido DESC", [$data_inicio, $data_fim])->fetchAll(PDO::FETCH_ASSOC);
 
     // 2. Vendas PENDENTES no período
-    $stmtPendentes = $pdo->prepare("SELECT p.*, u.nome as cliente FROM pedidos p 
+    $vendasPendentes = q($pdo, "SELECT p.*, u.nome as cliente FROM pedidos p 
                                     JOIN usuarios u ON p.usuario_id = u.id 
                                     WHERE p.status = 'pendente' AND DATE(p.data_pedido) BETWEEN ? AND ? 
-                                    ORDER BY p.data_pedido DESC");
-    $stmtPendentes->execute([$data_inicio, $data_fim]);
-    $vendasPendentes = $stmtPendentes->fetchAll(PDO::FETCH_ASSOC);
+                                    ORDER BY p.data_pedido DESC", [$data_inicio, $data_fim])->fetchAll(PDO::FETCH_ASSOC);
 
     // 3. Dados para o gráfico
-    $stmtGrafico = $pdo->prepare("SELECT DATE(data_pedido) as dia, SUM(total) as total 
+    $dadosGrafico = q($pdo, "SELECT DATE(data_pedido) as dia, SUM(total) as total 
                                   FROM pedidos WHERE status = 'pago' AND DATE(data_pedido) BETWEEN ? AND ? 
-                                  GROUP BY DATE(data_pedido) ORDER BY dia ASC");
-    $stmtGrafico->execute([$data_inicio, $data_fim]);
-    $dadosGrafico = $stmtGrafico->fetchAll(PDO::FETCH_ASSOC);
+                                  GROUP BY DATE(data_pedido) ORDER BY dia ASC", [$data_inicio, $data_fim])->fetchAll(PDO::FETCH_ASSOC);
 
     // 4. Produto MAIS vendido
-    $stmtTop = $pdo->prepare("SELECT p.nome, SUM(it.quantidade) as total_vendas 
+    $produtoTop = q($pdo, "SELECT p.nome, SUM(it.quantidade) as total_vendas 
                              FROM itens_pedido it 
                              JOIN produtos p ON it.produto_id = p.id 
                              JOIN pedidos ped ON it.pedido_id = ped.id
                              WHERE ped.status = 'pago' AND DATE(ped.data_pedido) BETWEEN ? AND ?
-                             GROUP BY it.produto_id ORDER BY total_vendas DESC LIMIT 1");
-    $stmtTop->execute([$data_inicio, $data_fim]);
-    $produtoTop = $stmtTop->fetch(PDO::FETCH_ASSOC);
+                             GROUP BY it.produto_id ORDER BY total_vendas DESC LIMIT 1", [$data_inicio, $data_fim])->fetch(PDO::FETCH_ASSOC);
 
     // 5. Produto MENOS vendido
-    $stmtLow = $pdo->prepare("SELECT p.nome, IFNULL(SUM(it.quantidade), 0) as total_vendas 
+    $produtoLow = q($pdo, "SELECT p.nome, IFNULL(SUM(it.quantidade), 0) as total_vendas 
                               FROM produtos p
                               LEFT JOIN itens_pedido it ON p.id = it.produto_id
                               LEFT JOIN pedidos ped ON it.pedido_id = ped.id AND ped.status = 'pago'
                               WHERE (DATE(ped.data_pedido) BETWEEN ? AND ? OR ped.id IS NULL)
-                              GROUP BY p.id ORDER BY total_vendas ASC LIMIT 1");
-    $stmtLow->execute([$data_inicio, $data_fim]);
-    $produtoLow = $stmtLow->fetch(PDO::FETCH_ASSOC);
+                              GROUP BY p.id ORDER BY total_vendas ASC LIMIT 1", [$data_inicio, $data_fim])->fetch(PDO::FETCH_ASSOC);
 
 } catch (PDOException $e) {
     $produtoTop = $produtoLow = null;
+    $vendasPagas = $vendasPendentes = $dadosGrafico = [];
 }
+
+$graf_labels = json_encode(array_map(fn($r) => date('d/m', strtotime($r['dia'])), $dadosGrafico));
+$graf_data = json_encode(array_map(fn($r) => round($r['total'], 2), $dadosGrafico));
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vendas | Alto Jordão Admin</title>
     <link rel="stylesheet" href="style.css?v=<?= time() ?>">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">

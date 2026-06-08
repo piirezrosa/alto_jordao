@@ -9,8 +9,11 @@ if (!isset($_SESSION['usuario_id'])) {
     exit();
 }
 
-$stmt = $pdo->prepare("SELECT * FROM usuarios WHERE id = ?");
-$stmt->execute([$_SESSION['usuario_id']]);
+$stmt = $pdo->prepare("SELECT u.*, e.cep, e.rua, e.numero, e.bairro, e.cidade, e.estado 
+                       FROM usuarios u
+                       LEFT JOIN enderecos e ON u.id = e.usuario_id
+                       WHERE u.id = :id");
+$stmt->execute([':id' => $_SESSION['usuario_id']]);
 $user = $stmt->fetch();
 ?>
 <!DOCTYPE html>
@@ -108,7 +111,7 @@ $user = $stmt->fetch();
 
                     <div class="input-grupo span-3">
                         <label class="auth-label">ENDEREÇO / RUA</label>
-                        <input type="text" name="endereco" class="auth-input" value="<?= htmlspecialchars($user['endereco'] ?? '') ?>">
+                        <input type="text" name="rua" class="auth-input" value="<?= htmlspecialchars($user['rua'] ?? '') ?>">
                     </div>
 
                     <div class="input-grupo">
@@ -156,7 +159,7 @@ $user = $stmt->fetch();
                 .then(response => response.json())
                 .then(dados => {
                     if (!dados.erro) {
-                        document.querySelector('input[name="endereco"]').value = dados.logradouro;
+                        document.querySelector('input[name="rua"]').value = dados.logradouro;
                         document.querySelector('input[name="bairro"]').value = dados.bairro;
                         document.querySelector('input[name="cidade"]').value = dados.localidade;
                         document.querySelector('input[name="estado"]').value = dados.uf;

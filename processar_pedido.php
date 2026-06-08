@@ -21,22 +21,28 @@ if (empty($carrinho)) {
 try {
     $pdo->beginTransaction();
 
-    // --- 1. ATUALIZAR DADOS DO USUÁRIO (ENDEREÇO) ---
-    // Pegamos os dados que vieram do formulário de checkout
     $nome     = $_POST['nome'] ?? '';
+    $pdo->prepare("UPDATE usuarios SET nome = ? WHERE id = ?")
+        ->execute([$nome, $usuario_id]);
+    
     $cep      = $_POST['cep'] ?? '';
-    $endereco = $_POST['endereco'] ?? '';
+    $rua      = $_POST['rua'] ?? '';
     $numero   = $_POST['numero'] ?? '';
     $bairro   = $_POST['bairro'] ?? '';
     $cidade   = $_POST['cidade'] ?? '';
     $estado   = $_POST['estado'] ?? '';
 
-    $sqlUser = "UPDATE usuarios SET 
-                nome = ?, cep = ?, endereco = ?, numero = ?, 
-                bairro = ?, cidade = ?, estado = ? 
-                WHERE id = ?";
-    $stmtUser = $pdo->prepare($sqlUser);
-    $stmtUser->execute([$nome, $cep, $endereco, $numero, $bairro, $cidade, $estado, $usuario_id]);
+    $check = $pdo->prepare("SELECT id FROM enderecos WHERE usuario_id = ?");
+    $check->execute([$usuario_id]);
+    $enderecoExiste = $check->fetchColumn();
+
+    if ($enderecoExiste) {
+        $pdo->prepare("UPDATE enderecos SET cep = ?, rua = ?, numero = ?, bairro = ?, cidade = ?, estado = ? WHERE usuario_id = ?")
+            ->execute([$cep, $rua, $numero, $bairro, $cidade, $estado, $usuario_id]);
+    } else {
+        $pdo->prepare("INSERT INTO enderecos (usuario_id, cep, rua, numero, bairro, cidade, estado) VALUES (?, ?, ?, ?, ?, ?, ?)")
+            ->execute([$usuario_id, $cep, $rua, $numero, $bairro, $cidade, $estado]);
+    }
 
     // --- 2. CALCULAR TOTAL DO PEDIDO ---
     $total = 0;

@@ -1,14 +1,15 @@
 <?php 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php'; 
 
 // --- TRAVA DE SEGURANÇA: SÓ ACESSA LOGADO ---
 $user = null;
 if (isset($_SESSION['usuario_id'])) {
-    $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE id = ?");
-    $stmt->execute([$_SESSION['usuario_id']]);
+    $stmt = $pdo->prepare("SELECT u.*, e.cep, e.rua, e.numero, e.bairro, e.cidade, e.estado 
+                           FROM usuarios u
+                           LEFT JOIN enderecos e ON u.id = e.usuario_id
+                           WHERE u.id = :id");
+    $stmt->execute([':id' => $_SESSION['usuario_id']]);
     $user = $stmt->fetch();
 } else {
     // Redireciona caso não esteja logado
@@ -171,7 +172,7 @@ if (isset($_SESSION['usuario_id'])) {
                 <div style="display: grid; grid-template-columns: 2.5fr 1fr; gap: 20px;">
                     <div class="form-group">
                         <label>Logradouro / Rua</label>
-                        <input type="text" id="endereco" name="endereco" required placeholder="Ex: Av. Paulista" value="<?= htmlspecialchars($user['endereco'] ?? '') ?>">
+                        <input type="text" id="rua" name="rua" required placeholder="Ex: Av. Paulista" value="<?= htmlspecialchars($user['rua'] ?? '') ?>">
                     </div>
                     <div class="form-group">
                         <label>Número</label>
@@ -250,7 +251,7 @@ if (isset($_SESSION['usuario_id'])) {
                         .then(res => res.json())
                         .then(dados => {
                             if (!dados.erro) {
-                                document.getElementById('endereco').value = dados.logradouro;
+                                document.getElementById('rua').value = dados.logradouro;
                                 document.getElementById('bairro').value = dados.bairro;
                                 document.getElementById('cidade').value = dados.localidade;
                                 document.getElementById('estado').value = dados.uf;

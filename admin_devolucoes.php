@@ -3,9 +3,8 @@ require_once 'config.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
 // Segurança: Bloqueia quem não é admin
-if (!isset($_SESSION['usuario_nivel']) || $_SESSION['usuario_nivel'] !== 'admin' && $_SESSION['usuario_nivel'] !== 'superadmin') { 
-    header("Location: login.php"); 
-    exit; 
+if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
+    header("Location: login.php"); exit();
 }
 
 // Lógica de Processamento (Aprovar ou Recusar)

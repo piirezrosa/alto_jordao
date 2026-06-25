@@ -66,7 +66,7 @@ $graf_labels = json_encode(array_map(fn($d) => date('d/m', strtotime($d['dia']))
 $graf_data   = json_encode(array_map(fn($d) => round((float)$d['total'], 2), $dadosGrafico));
 
 define('CONTEUDO_AUTORIZADO', true);
-$pagina_atual = 'vendas';
+$pagina_atual = 'financeiro';
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">

@@ -47,7 +47,7 @@ $devolucoes_pend = $pdo->query("SELECT COUNT(*) FROM devolucoes WHERE status='pe
 $p_pendente_sb   = $pdo->query("SELECT COUNT(*) FROM pedidos WHERE status='pendente'")->fetchColumn();
 
 define('CONTEUDO_AUTORIZADO', true);
-$pagina_atual = 'devolucoes';
+$pagina_atual = 'estoque';
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">

@@ -79,6 +79,9 @@ $p_pendente_sb   = $pdo->query("SELECT COUNT(*) FROM pedidos WHERE status='pende
 $graf_labels = json_encode(array_map(fn($r) => date('d/m', strtotime($r['dia'])), $vendas_periodo));
 $graf_receita= json_encode(array_map(fn($r) => round($r['receita'],2), $vendas_periodo));
 $graf_pedidos= json_encode(array_map(fn($r) => (int)$r['pedidos'], $vendas_periodo));
+
+define('CONTEUDO_AUTORIZADO', true);
+$pagina_atual = 'relatorios';
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
@@ -137,56 +140,7 @@ $graf_pedidos= json_encode(array_map(fn($r) => (int)$r['pedidos'], $vendas_perio
 </head>
 <body class="admin-page">
 
-<aside class="admin-sidebar">
-    <div class="sb-logo">ALTO JORDÃO</div>
-    <div class="sb-section">
-        <span class="sb-section-title">Visão Geral</span>
-        <a href="admin_dashboard.php" class="sb-item">📊 Dashboard</a>
-    </div>
-    <div class="sb-section">
-        <span class="sb-section-title">Vendas</span>
-        <a href="admin_pedidos.php" class="sb-item">🛒 Pedidos <?php if($p_pendente_sb>0): ?><span class="sb-badge"><?= $p_pendente_sb ?></span><?php endif; ?></a>
-        <a href="admin_vendas.php"     class="sb-item">💰 Financeiro</a>
-        <a href="entregas.php"         class="sb-item">📦 Logística</a>
-        <a href="admin_devolucoes.php" class="sb-item">🔄 Devoluções <?php if($devolucoes_pend>0): ?><span class="sb-badge"><?= $devolucoes_pend ?></span><?php endif; ?></a>
-    </div>
-    <div class="sb-section">
-        <span class="sb-section-title">Catálogo</span>
-        <a href="admin_produtos.php"    class="sb-item">👕 Produtos</a>
-        <a href="admin_estoque.php"     class="sb-item">📋 Estoque <?php if($estoque_critico>0): ?><span class="sb-badge"><?= $estoque_critico ?></span><?php endif; ?></a>
-        <a href="admin_categorias.php"  class="sb-item">🏷️ Categorias</a>
-        <a href="admin_colecoes.php"    class="sb-item">✨ Coleções</a>
-        <a href="admin_marcas.php"      class="sb-item">🔖 Marcas</a>
-        <a href="cadastrar_produto.php" class="sb-item">➕ Novo Produto</a>
-    </div>
-    <div class="sb-section">
-        <span class="sb-section-title">Usuários</span>
-        <a href="admin_clientes.php" class="sb-item">👥 Clientes</a>
-        <a href="admin_admins.php"   class="sb-item">🛡️ Administradores</a>
-    </div>
-    <div class="sb-section">
-        <span class="sb-section-title">Marketing</span>
-        <a href="admin_cupons.php"     class="sb-item">🎟️ Cupons</a>
-        <a href="admin_avaliacoes.php" class="sb-item">⭐ Avaliações</a>
-    </div>
-    <div class="sb-section">
-        <span class="sb-section-title">Sistema</span>
-        <a href="admin_relatorios.php"    class="sb-item active">📈 Relatórios</a>
-        <a href="admin_logs.php"          class="sb-item">🔍 Logs & Auditoria</a>
-        <a href="admin_configuracoes.php" class="sb-item">⚙️ Configurações</a>
-    </div>
-    <div class="sb-footer">
-        <div class="sb-user">
-            <div class="sb-avatar"><?= strtoupper(substr($_SESSION['usuario_nome']??'A',0,1)) ?></div>
-            <div class="sb-user-info">
-                <small><?= strtoupper($_SESSION['usuario_nivel']??'admin') ?></small>
-                <strong><?= explode(' ',$_SESSION['usuario_nome']??'Admin')[0] ?></strong>
-            </div>
-        </div>
-        <a href="index.php"  class="sb-item">🏪 Ver Loja</a>
-        <a href="logout.php" class="sb-item" style="color:var(--danger);">🚪 Sair</a>
-    </div>
-</aside>
+<?php include 'sidebar.php'; ?>
 
 <main class="admin-main">
     <div class="admin-topbar">

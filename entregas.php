@@ -53,7 +53,7 @@ $estoque_critico = $pdo->query("SELECT COUNT(*) FROM produtos WHERE estoque<=3 A
 $p_pendente_sb   = $c_pendente;
 
 define('CONTEUDO_AUTORIZADO', true);
-$pagina_atual = 'dashboard';
+$pagina_atual = 'logistica';
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">

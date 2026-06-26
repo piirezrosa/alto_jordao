@@ -65,6 +65,7 @@ $pag_ativa = $pagina_atual ?? '';
     <div class="sb-section">
         <span class="sb-section-title">Marketing</span>
         <a href="admin_cupons.php" class="sb-item <?= $pag_ativa === 'cupons' ? 'active' : '' ?>">🎟️ Cupons</a>
+        <a href="admin_avaliacoes.php" class="sb-item <?= $pag_ativa === 'avaliacoes' ? 'active' : '' ?>">⭐ Avaliações</a>
     </div>
 
     <div class="sb-section">

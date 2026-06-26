@@ -17,10 +17,6 @@ if (!$p) {
 $queryRelacionados = $pdo->prepare("SELECT * FROM produtos WHERE categoria = ? AND id != ? LIMIT 4");
 $queryRelacionados->execute([$p['categoria'] ?? '', $id]);
 $relacionados = $queryRelacionados->fetchAll(PDO::FETCH_ASSOC);
-// BUSCA AVALIAÇÕES DO BANCO DE DADOS PARA ESTE PRODUTO ESPECÍFICO
-$queryAv = $pdo->prepare("SELECT * FROM avaliacoes WHERE produto_id = ? ORDER BY data_envio DESC");
-$queryAv->execute([$id]);
-$avaliacoes = $queryAv->fetchAll(PDO::FETCH_ASSOC);
 
 $strTamanho = $p['tamanho'] ?? $p['TAMANHO'] ?? '';
 $strCor = $p['cor'] ?? $p['COR'] ?? '';
@@ -29,8 +25,33 @@ $tamanhosDisponiveis = array_filter(array_map('trim', explode(',', $strTamanho))
 $coresDisponiveis = array_filter(array_map('trim', explode(',', $strCor)));
 
 $produtoJson = htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8');
+
+// ── AVALIAÇÕES DO BANCO ───────────────────────
+$avaliacoes = $pdo->prepare("
+    SELECT a.*, 
+           COALESCE(u.nome, a.titulo) as autor
+    FROM avaliacoes a
+    LEFT JOIN usuarios u ON a.usuario_id = u.id
+    WHERE a.produto_id = ? AND a.status = 'aprovado'
+    ORDER BY a.data_envio DESC
+");
+$avaliacoes->execute([$id]);
+$avaliacoes = $avaliacoes->fetchAll(PDO::FETCH_ASSOC);
+
+// Média e total
+$total_aval  = count($avaliacoes);
+$media_notas = $total_aval > 0 ? round(array_sum(array_column($avaliacoes, 'nota')) / $total_aval, 1) : 0;
+
+// Usuário logado
+$usuario_logado   = isset($_SESSION['usuario_id']);
+$usuario_nome     = $_SESSION['usuario_nome'] ?? '';
+$ja_avaliou       = false;
+if ($usuario_logado) {
+    $check = $pdo->prepare("SELECT id FROM avaliacoes WHERE produto_id = ? AND usuario_id = ?");
+    $check->execute([$id, $_SESSION['usuario_id']]);
+    $ja_avaliou = (bool)$check->fetchColumn();
+}
 ?>
-<!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
@@ -153,48 +174,102 @@ $produtoJson = htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8');
     <?php endforeach; ?>
 </section>
 
+<!-- ── SEÇÃO DE AVALIAÇÕES ───────────────────── -->
 <div class="divider">
     <h2>Avaliações</h2>
     <div class="line"></div>
 </div>
 
 <section class="reviews-section">
-    <div class="form-review">
-        <h3 style="font-weight: 900; margin-bottom: 20px;">DEIXE SUA OPINIÃO</h3>
-        <form id="commentForm" action="salvar_avaliacao.php" method="POST">
-            <input type="hidden" id="produto_id" value="<?= $id ?>">
-            <input type="text" name="nome" placeholder="Seu nome" required>
-            <select id="revStars">
-                <option value="5">⭐⭐⭐⭐⭐ (Excelente)</option>
-                <option value="4">⭐⭐⭐⭐ (Muito bom)</option>
-                <option value="3">⭐⭐⭐ (Bom)</option>
-                <option value="2">⭐⭐ (Regular)</option>
-                <option value="1">⭐ (Péssimo)</option>
-            </select>
-            <textarea name="comentario" rows="4" placeholder="O que você achou do produto?" required></textarea>
-            <button type="submit" class="btn-add-cart" style="margin-top: 0; padding: 15px;">PUBLICAR</button>
-        </form>
-    </div>
 
-    <div id="reviewsList">
-        <?php if (count($avaliacoes) > 0): ?>
-            <?php foreach ($avaliacoes as $av): ?>
-                <div class="review-item">
-                    <div style="color: #000; margin-bottom: 5px;">
-                        <?= str_repeat("⭐", (int)$av['estrelas']) ?>
-                    </div>
-                    <strong style="text-transform: uppercase; font-size: 12px;">
-                        <?= htmlspecialchars($av['nome']) ?>
-                    </strong>
-                    <p style="color: #666; font-size: 14px; margin-top: 10px; line-height: 1.6;">
-                        <?= htmlspecialchars($av['comentario']) ?>
-                    </p>
+    <!-- FORMULÁRIO -->
+    <div class="form-review">
+        <h3 style="font-weight:900; margin-bottom:6px;">DEIXE SUA OPINIÃO</h3>
+
+        <?php if($total_aval > 0): ?>
+        <!-- Resumo de nota média -->
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:24px; padding:16px; background:#f9f9f9; border-radius:16px;">
+            <span style="font-size:36px; font-weight:900; letter-spacing:-1px;"><?= $media_notas ?></span>
+            <div>
+                <div style="color:#000; font-size:18px; letter-spacing:2px;">
+                    <?php for($i=1;$i<=5;$i++) echo $i <= round($media_notas) ? '⭐' : '☆'; ?>
                 </div>
-            <?php endforeach; ?>
+                <small style="color:#999; font-size:11px; font-weight:700;"><?= $total_aval ?> avaliação(ões)</small>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if($ja_avaliou): ?>
+        <div style="background:#f0fdf4; border:1px solid #c8e6c9; padding:16px; border-radius:14px; color:#2e7d32; font-size:13px; font-weight:700;">
+            ✓ Você já avaliou este produto. Obrigado!
+        </div>
+
         <?php else: ?>
-            <p id="noReviews" style="color: #999; font-style: italic;">Nenhuma avaliação ainda. Seja o primeiro a avaliar!</p>
+        <form id="commentForm">
+            <input type="hidden" id="produtoId" value="<?= $p['id'] ?>">
+
+            <?php if(!$usuario_logado): ?>
+            <input type="text" id="revName" placeholder="Seu nome" required
+                   style="width:100%; padding:14px; border-radius:12px; border:1px solid #ddd; margin-bottom:14px; font-family:inherit;">
+            <?php else: ?>
+            <input type="hidden" id="revName" value="<?= htmlspecialchars($usuario_nome) ?>">
+            <p style="font-size:12px; color:#999; margin-bottom:14px; font-weight:600;">
+                Avaliando como <strong style="color:#000;"><?= htmlspecialchars(explode(' ',$usuario_nome)[0]) ?></strong>
+            </p>
+            <?php endif; ?>
+
+            <select id="revStars" style="width:100%; padding:14px; border-radius:12px; border:1px solid #ddd; margin-bottom:14px; font-family:inherit; background:#fff;">
+                <option value="5">⭐⭐⭐⭐⭐ — Excelente</option>
+                <option value="4">⭐⭐⭐⭐ — Muito bom</option>
+                <option value="3">⭐⭐⭐ — Bom</option>
+                <option value="2">⭐⭐ — Regular</option>
+                <option value="1">⭐ — Péssimo</option>
+            </select>
+
+            <textarea id="revText" rows="4"
+                      placeholder="O que você achou do produto? Qualidade, tamanho, entrega..."
+                      required
+                      style="width:100%; padding:14px; border-radius:12px; border:1px solid #ddd; margin-bottom:14px; font-family:inherit; resize:vertical;"></textarea>
+
+            <button type="submit" class="btn-add-cart" style="margin-top:0; padding:15px;" id="btnEnviarAval">
+                PUBLICAR AVALIAÇÃO
+            </button>
+
+            <div id="avalMsg" style="display:none; margin-top:14px; padding:14px; border-radius:12px; font-size:13px; font-weight:700;"></div>
+        </form>
         <?php endif; ?>
     </div>
+
+    <!-- LISTA DE AVALIAÇÕES -->
+    <div id="reviewsList">
+        <?php if(empty($avaliacoes)): ?>
+        <p id="noReviewsMessage" style="color:#999; font-style:italic;">
+            Nenhuma avaliação aprovada ainda. Seja o primeiro a avaliar!
+        </p>
+        <?php endif; ?>
+
+        <?php foreach($avaliacoes as $av): ?>
+        <div class="review-item">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                <div>
+                    <strong style="text-transform:uppercase; font-size:12px; letter-spacing:1px; display:block;">
+                        <?= htmlspecialchars($av['autor'] ?: 'Anônimo') ?>
+                    </strong>
+                    <small style="color:#bbb; font-size:11px;">
+                        <?= date('d/m/Y', strtotime($av['data_envio'])) ?>
+                    </small>
+                </div>
+                <span style="color:#000; font-size:16px; letter-spacing:1px;">
+                    <?php for($i=1;$i<=5;$i++) echo $i <= $av['nota'] ? '⭐' : '☆'; ?>
+                </span>
+            </div>
+            <p style="color:#555; font-size:14px; line-height:1.6; margin:0;">
+                <?= nl2br(htmlspecialchars($av['comentario'])) ?>
+            </p>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
 </section>
 
 <script src="script.js?v=<?= time() ?>"></script>
@@ -229,28 +304,87 @@ $produtoJson = htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8');
         }
     }
 
-    // Lógica para Adicionar Comentário na tela
-    document.getElementById('commentForm').onsubmit = function(e) {
-        e.preventDefault();
-        
-        const name = document.getElementById('revName').value;
-        const stars = document.getElementById('revStars').value;
-        const text = document.getElementById('revText').value;
-        const list = document.getElementById('reviewsList');
-        const noRev = document.getElementById('noReviews');
+    // ── ENVIO DE AVALIAÇÃO VIA AJAX ─────────────
+    const form = document.getElementById('commentForm');
+    if (form) {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
 
-        if(noRev) noRev.remove();
+            const btn     = document.getElementById('btnEnviarAval');
+            const msgBox  = document.getElementById('avalMsg');
+            const nome    = document.getElementById('revName').value.trim();
+            const nota    = document.getElementById('revStars').value;
+            const texto   = document.getElementById('revText').value.trim();
+            const prodId  = document.getElementById('produtoId').value;
 
-        const div = document.createElement('div');
-        div.className = 'review-item';
-        div.innerHTML = `
-            <div style="color: #000; margin-bottom: 5px;">${"⭐".repeat(stars)}</div>
-            <strong style="text-transform: uppercase; font-size: 12px;">${name}</strong>
-            <p style="color: #666; font-size: 14px; margin-top: 10px; line-height: 1.6;">${text}</p>
-        `;
-        list.prepend(div); // Adiciona no topo da lista
-        this.reset();
-    };
+            if (texto.length < 5) {
+                msgBox.style.display = 'block';
+                msgBox.style.background = '#fff0f0';
+                msgBox.style.color = '#c62828';
+                msgBox.textContent = '⚠ Escreva pelo menos 5 caracteres.';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
+
+            const formData = new FormData();
+            formData.append('produto_id', prodId);
+            formData.append('nome',       nome);
+            formData.append('estrelas',   nota);
+            formData.append('comentario', texto);
+
+            try {
+                const res  = await fetch('salvar_avaliacao.php', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                msgBox.style.display = 'block';
+
+                if (data.status === 'success') {
+                    msgBox.style.background = '#f0fdf4';
+                    msgBox.style.color      = '#2e7d32';
+                    msgBox.textContent      = '✓ ' + data.message;
+                    form.reset();
+                    btn.textContent = 'ENVIADO ✓';
+
+                    // Se aprovação automática, renderiza na tela sem recarregar
+                    if (!data.moderacao && data.avaliacao) {
+                        const av  = data.avaliacao;
+                        const div = document.createElement('div');
+                        div.className = 'review-item';
+                        const stars = '⭐'.repeat(av.nota) + '☆'.repeat(5 - av.nota);
+                        div.innerHTML = `
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                                <div>
+                                    <strong style="text-transform:uppercase; font-size:12px; letter-spacing:1px; display:block;">${av.nome}</strong>
+                                    <small style="color:#bbb; font-size:11px;">${av.data_envio}</small>
+                                </div>
+                                <span style="color:#000; font-size:16px; letter-spacing:1px;">${stars}</span>
+                            </div>
+                            <p style="color:#555; font-size:14px; line-height:1.6; margin:0;">${av.comentario}</p>
+                        `;
+                        const noMsg = document.getElementById('noReviewsMessage');
+                        if (noMsg) noMsg.remove();
+                        document.getElementById('reviewsList').prepend(div);
+                    }
+                } else {
+                    msgBox.style.background = '#fff0f0';
+                    msgBox.style.color      = '#c62828';
+                    msgBox.textContent      = '⚠ ' + data.message;
+                    btn.disabled    = false;
+                    btn.textContent = 'PUBLICAR AVALIAÇÃO';
+                }
+
+            } catch (err) {
+                msgBox.style.display    = 'block';
+                msgBox.style.background = '#fff0f0';
+                msgBox.style.color      = '#c62828';
+                msgBox.textContent      = '⚠ Erro de conexão. Tente novamente.';
+                btn.disabled    = false;
+                btn.textContent = 'PUBLICAR AVALIAÇÃO';
+            }
+        });
+    }
 </script>
 </body>
 </html>

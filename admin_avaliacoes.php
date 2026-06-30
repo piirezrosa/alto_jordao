@@ -53,7 +53,7 @@ $avaliacoes = $pdo->prepare("
     JOIN produtos p ON a.produto_id = p.id
     LEFT JOIN usuarios u ON a.usuario_id = u.id
     WHERE $sql_where
-    ORDER BY a.data_envio DESC
+    ORDER BY a.data DESC
     LIMIT $por_pag OFFSET $offset
 ");
 $avaliacoes->execute($params);
@@ -229,7 +229,7 @@ $pagina_atual = 'avaliacoes';
                     <span style="color:var(--muted);">— <?= htmlspecialchars($av['autor_email']) ?></span>
                     <?php endif; ?>
                 </div>
-                <div class="aval-data"><?= date('d/m/Y \à\s H:i', strtotime($av['data_envio'])) ?></div>
+                <div class="aval-data"><?= date('d/m/Y \à\s H:i', strtotime($av['data'])) ?></div>
             </div>
             <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
                 <span class="stars"><?= str_repeat('⭐',$av['nota']) . str_repeat('☆',5-$av['nota']) ?></span>

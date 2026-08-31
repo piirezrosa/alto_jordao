@@ -33,7 +33,7 @@ $avaliacoes = $pdo->prepare("
     FROM avaliacoes a
     LEFT JOIN usuarios u ON a.usuario_id = u.id
     WHERE a.produto_id = ? AND a.status = 'aprovado'
-    ORDER BY a.data_envio DESC
+    ORDER BY a.data DESC
 ");
 $avaliacoes->execute([$id]);
 $avaliacoes = $avaliacoes->fetchAll(PDO::FETCH_ASSOC);
@@ -256,7 +256,7 @@ if ($usuario_logado) {
                         <?= htmlspecialchars($av['autor'] ?: 'Anônimo') ?>
                     </strong>
                     <small style="color:#bbb; font-size:11px;">
-                        <?= date('d/m/Y', strtotime($av['data_envio'])) ?>
+                        <?= date('d/m/Y', strtotime($av['data'])) ?>
                     </small>
                 </div>
                 <span style="color:#000; font-size:16px; letter-spacing:1px;">
@@ -357,7 +357,7 @@ if ($usuario_logado) {
                             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
                                 <div>
                                     <strong style="text-transform:uppercase; font-size:12px; letter-spacing:1px; display:block;">${av.nome}</strong>
-                                    <small style="color:#bbb; font-size:11px;">${av.data_envio}</small>
+                                    <small style="color:#bbb; font-size:11px;">${av.data}</small>
                                 </div>
                                 <span style="color:#000; font-size:16px; letter-spacing:1px;">${stars}</span>
                             </div>

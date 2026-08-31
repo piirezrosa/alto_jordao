@@ -135,7 +135,9 @@ if ($usuario_logado) {
                     $corChave = strtolower($corNome);
                     $coresMap = [
                         'preto'=>'black', 'branco'=>'white', 'azul'=>'blue', 'vermelho'=>'red', 
-                        'cinza'=>'#808080', 'marrom'=>'#8B4513', 'verde'=>'green', 'amarelo'=>'yellow'
+                        'cinza'=>'#808080', 'marrom'=>'#8B4513', 'verde'=>'green', 'amarelo'=>'yellow', 'rosa'=>'#FCE3ED',
+                        'creme'=>'#FDFBF7', 'azul claro'=>'#5A86AD', 'azul escuro'=>'#1560BD', 'vinho'=>'#4A000B', 'azul royal'=>'#111E6C',
+                        'space orange'=>'#FF5F1F', 
                     ];
                     $corCss = $coresMap[$corChave] ?? $corChave;
                 ?>

@@ -6,13 +6,13 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // Segurança: Somente admins acessam
-if (!isset($_SESSION['usuario_nivel']) || $_SESSION['usuario_nivel'] !== 'admin') {
-    header("Location: login.php?erro=acesso_negado");
+ if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
+    header("Location: login.php"); 
     exit();
-}
+ }
 
 $id = $_GET['id'] ?? null;
-if (!$id) { header("Location: admin.php"); exit; }
+if (!$id) { header("Location: _dashboard.php"); exit; }
 
 // Busca o produto atual
 $query = $pdo->prepare("SELECT * FROM produtos WHERE id = ?");
@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $update = $pdo->prepare($sql);
     
     if ($update->execute([$nome, $preco_novo, $preco_antigo, $categoria, $genero, $tamanho, $cor, $imagem, $id])) {
-        echo "<script>alert('Produto atualizado com sucesso!'); window.location.href='admin.php';</script>";
+        echo "<script>alert('Produto atualizado com sucesso!'); window.location.href='admin_dashboard.php';</script>";
     }
 }
 ?>
@@ -135,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
 
                         <div class="form-actions" style="grid-column: span 2; display: flex; gap: 15px; margin-top: 10px;">
-                            <a href="admin.php" style="flex: 1; text-align: center; padding: 20px; border: 1px solid #ddd; border-radius: 50px; color: #666; font-weight: 700; text-decoration: none; font-size: 12px;">DESCARTAR</a>
+                            <a href="admin_dashboard.php" style="flex: 1; text-align: center; padding: 20px; border: 1px solid #ddd; border-radius: 50px; color: #666; font-weight: 700; text-decoration: none; font-size: 12px;">DESCARTAR</a>
                             <button type="submit" style="flex: 2; padding: 20px; background: #000; color: #fff; border: none; border-radius: 50px; font-weight: 900; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; font-size: 12px;">ATUALIZAR PRODUTO</button>
                         </div>
 

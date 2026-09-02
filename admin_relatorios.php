@@ -2,86 +2,159 @@
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
 
-if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
-    header("Location: login.php"); exit();
+if (!isset($_SESSION['usuario_nivel']) ||
+    !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
+    header("Location: login.php"); exit;
 }
 
-$periodo    = $_GET['periodo']    ?? '30';
-$data_ini   = $_GET['data_ini']   ?? date('Y-m-d', strtotime("-{$periodo} days"));
-$data_fim   = $_GET['data_fim']   ?? date('Y-m-d');
-$tipo       = $_GET['tipo']       ?? 'vendas';
+$aba       = $_GET['aba']    ?? 'vendas';
+$periodo   = $_GET['periodo']?? '30';
+$data_ini  = $_GET['data_ini']?? date('Y-m-01');
+$data_fim  = $_GET['data_fim']?? date('Y-m-d');
 
-// ── RELATÓRIO DE VENDAS ───────────────────────
-$vendas_periodo = $pdo->prepare("
-    SELECT DATE(data_pedido) as dia, COUNT(*) as pedidos, SUM(total) as receita
-    FROM pedidos WHERE status IN('pago','enviado','entregue')
-    AND DATE(data_pedido) BETWEEN ? AND ?
-    GROUP BY DATE(data_pedido) ORDER BY dia ASC
-");
-$vendas_periodo->execute([$data_ini, $data_fim]);
-$vendas_periodo = $vendas_periodo->fetchAll(PDO::FETCH_ASSOC);
+if ($periodo !== 'custom') {
+    $data_ini = date('Y-m-d', strtotime("-$periodo days"));
+    $data_fim = date('Y-m-d');
+}
 
-// ── TOP PRODUTOS ──────────────────────────────
-$top_prod = $pdo->prepare("
-    SELECT p.nome, p.imagem, p.categoria,
-           SUM(ip.quantidade) as qtd_vendida,
-           SUM(ip.quantidade * ip.preco_unitario) as receita,
-           SUM(ip.quantidade * COALESCE(ip.custo_unitario, p.custo, 0)) as custo_total
-    FROM itens_pedido ip
-    JOIN produtos p ON ip.produto_id = p.id
-    JOIN pedidos ped ON ip.pedido_id = ped.id
-    WHERE ped.status IN('pago','enviado','entregue')
-    AND DATE(ped.data_pedido) BETWEEN ? AND ?
-    GROUP BY ip.produto_id ORDER BY qtd_vendida DESC LIMIT 10
-");
-$top_prod->execute([$data_ini, $data_fim]);
-$top_prod = $top_prod->fetchAll(PDO::FETCH_ASSOC);
+// Aba: vendas (comparativo de período)
+if ($aba === 'vendas') {
+    // Período atual
+    $atual = $pdo->prepare("
+        SELECT
+            COUNT(*) as total_pedidos,
+            COALESCE(SUM(total),0) as receita,
+            COALESCE(AVG(total),0) as ticket_medio,
+            COUNT(DISTINCT usuario_id) as clientes_unicos
+        FROM pedidos
+        WHERE status NOT IN ('cancelado')
+          AND DATE(data_pedido) BETWEEN ? AND ?
+    ");
+    $atual->execute([$data_ini, $data_fim]);
+    $atual = $atual->fetch(PDO::FETCH_ASSOC);
 
-// ── RELATÓRIO DE CLIENTES ─────────────────────
-$top_clientes = $pdo->prepare("
-    SELECT u.nome, u.email, COUNT(ped.id) as total_pedidos,
-           SUM(ped.total) as total_gasto,
-           MAX(ped.data_pedido) as ultima_compra
-    FROM pedidos ped JOIN usuarios u ON ped.usuario_id = u.id
-    WHERE ped.status IN('pago','enviado','entregue')
-    AND DATE(ped.data_pedido) BETWEEN ? AND ?
-    GROUP BY ped.usuario_id ORDER BY total_gasto DESC LIMIT 10
-");
-$top_clientes->execute([$data_ini, $data_fim]);
-$top_clientes = $top_clientes->fetchAll(PDO::FETCH_ASSOC);
+    // Período anterior (mesma duração)
+    $dias = max(1, (int)$periodo === 0 ? (int)((strtotime($data_fim) - strtotime($data_ini)) / 86400) : (int)$periodo);
+    $ant_fim = date('Y-m-d', strtotime($data_ini . ' -1 day'));
+    $ant_ini = date('Y-m-d', strtotime($ant_fim . " -$dias days"));
 
-// ── MÉTRICAS GERAIS ───────────────────────────
-$receita_total  = array_sum(array_column($vendas_periodo, 'receita'));
-$pedidos_total  = array_sum(array_column($vendas_periodo, 'pedidos'));
-$ticket_medio   = $pedidos_total > 0 ? $receita_total / $pedidos_total : 0;
-$lucro_total    = array_sum(array_map(fn($r) => $r['receita'] - $r['custo_total'], $top_prod));
-$dias_no_periodo= max(1, (strtotime($data_fim) - strtotime($data_ini)) / 86400 + 1);
-$media_diaria   = $receita_total / $dias_no_periodo;
+    $anterior = $pdo->prepare("
+        SELECT
+            COUNT(*) as total_pedidos,
+            COALESCE(SUM(total),0) as receita,
+            COALESCE(AVG(total),0) as ticket_medio,
+            COUNT(DISTINCT usuario_id) as clientes_unicos
+        FROM pedidos
+        WHERE status NOT IN ('cancelado')
+          AND DATE(data_pedido) BETWEEN ? AND ?
+    ");
+    $anterior->execute([$ant_ini, $ant_fim]);
+    $anterior = $anterior->fetch(PDO::FETCH_ASSOC);
 
-// ── RELATÓRIO POR CATEGORIA ───────────────────
-$por_categoria = $pdo->prepare("
-    SELECT p.categoria, SUM(ip.quantidade) as qtd, SUM(ip.quantidade * ip.preco_unitario) as receita
-    FROM itens_pedido ip
-    JOIN produtos p ON ip.produto_id = p.id
-    JOIN pedidos ped ON ip.pedido_id = ped.id
-    WHERE ped.status IN('pago','enviado','entregue')
-    AND DATE(ped.data_pedido) BETWEEN ? AND ?
-    GROUP BY p.categoria ORDER BY receita DESC
-");
-$por_categoria->execute([$data_ini, $data_fim]);
-$por_categoria = $por_categoria->fetchAll(PDO::FETCH_ASSOC);
+    // Gráfico comparativo diário (atual vs anterior)
+    $grafico_atual = $pdo->prepare("
+        SELECT DATE(data_pedido) as dia, COALESCE(SUM(total),0) as receita
+        FROM pedidos WHERE status != 'cancelado'
+          AND DATE(data_pedido) BETWEEN ? AND ?
+        GROUP BY dia ORDER BY dia
+    ");
+    $grafico_atual->execute([$data_ini, $data_fim]);
+    $grafico_atual = $grafico_atual->fetchAll(PDO::FETCH_ASSOC);
 
-// Badges sidebar
+    $grafico_anterior = $pdo->prepare("
+        SELECT DATE(data_pedido) as dia, COALESCE(SUM(total),0) as receita
+        FROM pedidos WHERE status != 'cancelado'
+          AND DATE(data_pedido) BETWEEN ? AND ?
+        GROUP BY dia ORDER BY dia
+    ");
+    $grafico_anterior->execute([$ant_ini, $ant_fim]);
+    $grafico_anterior = $grafico_anterior->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// Aba: desempenho de produtos
+if ($aba === 'produtos') {
+    $produtos_perf = $pdo->prepare("
+        SELECT
+            p.id, p.nome, p.preco, p.custo, p.estoque,
+            COALESCE(SUM(ip.quantidade), 0) AS total_vendido,
+            COALESCE(SUM(ip.quantidade * ip.preco_unitario), 0) AS receita_bruta,
+            COALESCE(
+                (SELECT COUNT(*) FROM devolucoes d
+                 JOIN pedidos pd ON d.pedido_id = pd.id
+                 JOIN itens_pedido ip2 ON ip2.pedido_id = pd.id
+                 WHERE ip2.produto_id = p.id), 0) AS devolucoes,
+            COALESCE(
+                (SELECT ROUND(AVG(a.nota),1) FROM avaliacoes a
+                 WHERE a.produto_id = p.id AND a.status='aprovado'), 0) AS nota_media,
+            COALESCE(
+                (SELECT COUNT(*) FROM avaliacoes a
+                 WHERE a.produto_id = p.id AND a.nota <= 2
+                   AND a.data >= DATE_SUB(NOW(), INTERVAL 30 DAY)), 0) AS neg_recentes
+        FROM produtos p
+        LEFT JOIN itens_pedido ip ON ip.produto_id = p.id
+        LEFT JOIN pedidos pd2 ON pd2.id = ip.pedido_id
+            AND pd2.status != 'cancelado'
+            AND DATE(pd2.data_pedido) BETWEEN ? AND ?
+        WHERE p.ativo = 1
+        GROUP BY p.id
+        ORDER BY devolucoes DESC, nota_media ASC
+    ");
+    $produtos_perf->execute([$data_ini, $data_fim]);
+    $produtos_perf = $produtos_perf->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// Aba: margem de lucro
+if ($aba === 'margem') {
+    $margem_dados = $pdo->prepare("
+        SELECT
+            p.id, p.nome, p.preco, p.custo,
+            COALESCE(SUM(ip.quantidade), 0) AS qtd_vendida,
+            COALESCE(SUM(ip.quantidade * ip.preco_unitario), 0) AS receita,
+            COALESCE(SUM(ip.quantidade * COALESCE(ip.custo_unitario, p.custo, 0)), 0) AS custo_total,
+            COALESCE(
+                (SELECT COUNT(*) FROM devolucoes d
+                 JOIN pedidos pd ON d.pedido_id = pd.id
+                 JOIN itens_pedido ip2 ON ip2.pedido_id = pd.id
+                 WHERE ip2.produto_id = p.id), 0) AS devolucoes,
+            COALESCE(
+                (SELECT SUM(ip3.preco_unitario) FROM devolucoes d2
+                 JOIN pedidos pd2 ON d2.pedido_id = pd2.id
+                 JOIN itens_pedido ip3 ON ip3.pedido_id = pd2.id
+                 WHERE ip3.produto_id = p.id AND d2.status='aprovado'), 0) AS valor_devolvido
+        FROM produtos p
+        LEFT JOIN itens_pedido ip ON ip.produto_id = p.id
+        LEFT JOIN pedidos pd3 ON pd3.id = ip.pedido_id
+            AND pd3.status NOT IN ('cancelado')
+            AND DATE(pd3.data_pedido) BETWEEN ? AND ?
+        WHERE p.ativo = 1
+        GROUP BY p.id
+        HAVING qtd_vendida > 0
+        ORDER BY receita DESC
+        LIMIT 30
+    ");
+    $margem_dados->execute([$data_ini, $data_fim]);
+    $margem_dados = $margem_dados->fetchAll(PDO::FETCH_ASSOC);
+
+    // Totais
+    $total_receita  = array_sum(array_column($margem_dados, 'receita'));
+    $total_custo    = array_sum(array_column($margem_dados, 'custo_total'));
+    $total_dev_val  = array_sum(array_column($margem_dados, 'valor_devolvido'));
+    $lucro_liquido  = $total_receita - $total_custo - $total_dev_val;
+    $margem_geral   = $total_receita > 0 ? ($lucro_liquido / $total_receita) * 100 : 0;
+}
+
+function variacao(float $atual, float $anterior): string {
+    if ($anterior == 0) return '<span style="color:var(--muted)">—</span>';
+    $pct = (($atual - $anterior) / $anterior) * 100;
+    $cor = $pct >= 0 ? 'var(--success)' : 'var(--danger)';
+    $seta = $pct >= 0 ? '↑' : '↓';
+    return "<span style='color:$cor;font-weight:800;font-size:12px;'>$seta " . abs(round($pct,1)) . "%</span>";
+}
+
+$c_nao_lidos     = $pdo->query("SELECT COUNT(*) FROM alertas WHERE lido=0")->fetchColumn();
 $devolucoes_pend = $pdo->query("SELECT COUNT(*) FROM devolucoes WHERE status='pendente'")->fetchColumn();
 $estoque_critico = $pdo->query("SELECT COUNT(*) FROM produtos WHERE estoque<=3 AND ativo=1")->fetchColumn();
 $p_pendente_sb   = $pdo->query("SELECT COUNT(*) FROM pedidos WHERE status='pendente'")->fetchColumn();
-
-$graf_labels = json_encode(array_map(fn($r) => date('d/m', strtotime($r['dia'])), $vendas_periodo));
-$graf_receita= json_encode(array_map(fn($r) => round($r['receita'],2), $vendas_periodo));
-$graf_pedidos= json_encode(array_map(fn($r) => (int)$r['pedidos'], $vendas_periodo));
-
-define('CONTEUDO_AUTORIZADO', true);
-$pagina_atual = 'relatorios';
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
@@ -94,273 +167,313 @@ $pagina_atual = 'relatorios';
     <link rel="stylesheet" href="admin_style.css?v=<?= time() ?>">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .report-tabs { display:flex; gap:8px; margin-bottom:22px; flex-wrap:wrap; }
+        .aba-nav { display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap; }
+        .aba-btn { padding:10px 22px; border-radius:50px; border:1px solid var(--border); background:var(--white); color:var(--text2); text-decoration:none; font-size:13px; font-weight:700; transition:var(--transition); }
+        .aba-btn:hover { background:var(--grey-bg); }
+        .aba-btn.active { background:var(--black); color:var(--white); border-color:var(--black); }
 
-        .tab-btn {
-            padding:9px 20px; border-radius:50px; border:1px solid var(--border);
-            background:var(--white); color:var(--text2); font-size:12px; font-weight:700;
-            cursor:pointer; text-decoration:none; transition:var(--transition);
-        }
-        .tab-btn:hover { background:var(--grey-bg); color:var(--black); }
-        .tab-btn.active { background:var(--black); color:var(--white); border-color:var(--black); }
+        .periodo-bar { background:var(--white); border:1px solid var(--border); border-radius:30px; padding:14px 22px; display:flex; gap:10px; align-items:center; margin-bottom:22px; flex-wrap:wrap; box-shadow:var(--shadow); }
+        .periodo-bar select, .periodo-bar input { background:var(--grey-bg); border:1px solid var(--border); border-radius:50px; color:var(--black); padding:8px 16px; font-family:var(--font-main); font-size:13px; outline:none; }
+        .periodo-bar label { font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; }
 
-        .filter-bar {
-            background:var(--white); border:1px solid var(--border); border-radius:30px;
-            padding:18px 26px; display:flex; gap:14px; align-items:flex-end;
-            margin-bottom:22px; flex-wrap:wrap; box-shadow:var(--shadow);
-        }
-        .filter-group { display:flex; flex-direction:column; gap:6px; }
-        .filter-group label { font-size:10px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
-        .filter-group input, .filter-group select {
-            background:var(--grey-bg); border:1px solid var(--border); border-radius:50px;
-            color:var(--black); padding:10px 16px; font-family:var(--font-main); font-size:13px; outline:none;
-        }
+        /* Comparativo */
+        .comp-grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:14px; margin-bottom:22px; }
+        .comp-card { background:var(--white); border:1px solid var(--border); border-radius:20px; padding:20px; box-shadow:var(--shadow); }
+        .comp-label { font-size:10px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+        .comp-atual { font-size:22px; font-weight:900; margin-bottom:4px; }
+        .comp-ant   { font-size:11px; color:var(--muted); margin-bottom:6px; }
 
-        .two-col { display:grid; grid-template-columns:1.6fr 1fr; gap:20px; margin-bottom:22px; }
+        /* Tabela de produtos */
+        .perf-table { width:100%; border-collapse:collapse; font-size:13px; }
+        .perf-table th { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:var(--muted); padding:12px 14px; text-align:left; border-bottom:2px solid var(--border); }
+        .perf-table td { padding:14px 14px; border-bottom:1px solid var(--border); vertical-align:middle; }
+        .perf-table tr:last-child td { border-bottom:none; }
+        .perf-table tr:hover td { background:var(--grey-bg); }
 
-        .rank-row {
-            display:flex; align-items:center; gap:12px;
-            padding:12px 0; border-bottom:1px solid var(--border);
-        }
-        .rank-row:last-child { border-bottom:none; }
-        .rank-n { width:22px; font-weight:900; color:var(--muted); font-size:16px; flex-shrink:0; }
-        .rank-1 .rank-n { color:var(--black); }
-        .rank-img { width:40px; height:40px; border-radius:10px; background:var(--grey-bg); object-fit:cover; flex-shrink:0; }
-        .rank-info { flex:1; min-width:0; }
-        .rank-name { font-weight:700; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .rank-sub  { font-size:11px; color:var(--text2); margin-top:2px; }
-        .rank-val  { font-weight:900; font-size:13px; white-space:nowrap; }
+        .score-bar { height:6px; border-radius:3px; background:var(--grey-bg); overflow:hidden; margin-top:4px; }
+        .score-fill { height:100%; border-radius:3px; }
 
-        .cat-bar { margin-bottom:14px; }
-        .cat-bar:last-child { margin-bottom:0; }
-        .cat-row { display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px; }
-        .cat-name { font-weight:700; text-transform:uppercase; }
-        .cat-val  { font-weight:800; }
+        .badge-score { display:inline-block; padding:3px 10px; border-radius:50px; font-size:10px; font-weight:800; }
+        .score-ok  { background:rgba(46,125,50,.1); color:var(--success); }
+        .score-med { background:rgba(245,158,11,.12); color:#b45309; }
+        .score-bad { background:rgba(255,77,77,.12); color:var(--danger); }
+
+        .stars { color:#000; letter-spacing:1px; font-size:13px; }
     </style>
 </head>
 <body class="admin-page">
 
-<?php include 'sidebar.php'; ?>
+<aside class="admin-sidebar">
+    <div class="sb-logo">ALTO JORDÃO</div>
+    <div class="sb-section">
+        <span class="sb-section-title">Visão Geral</span>
+        <a href="admin_dashboard.php" class="sb-item">📊 Dashboard</a>
+        <a href="admin_alertas.php"   class="sb-item">🔔 Alertas <?php if($c_nao_lidos>0): ?><span class="sb-badge"><?= $c_nao_lidos ?></span><?php endif; ?></a>
+    </div>
+    <div class="sb-section">
+        <span class="sb-section-title">Vendas</span>
+        <a href="admin_pedidos.php"    class="sb-item">🛒 Pedidos <?php if($p_pendente_sb>0): ?><span class="sb-badge"><?= $p_pendente_sb ?></span><?php endif; ?></a>
+        <a href="admin_vendas.php"     class="sb-item">💰 Financeiro</a>
+        <a href="entregas.php"         class="sb-item">📦 Logística</a>
+        <a href="admin_devolucoes.php" class="sb-item">🔄 Devoluções <?php if($devolucoes_pend>0): ?><span class="sb-badge"><?= $devolucoes_pend ?></span><?php endif; ?></a>
+    </div>
+    <div class="sb-section">
+        <span class="sb-section-title">Catálogo</span>
+        <a href="admin_produtos.php"   class="sb-item">👕 Produtos</a>
+        <a href="admin_estoque.php"    class="sb-item">📋 Estoque <?php if($estoque_critico>0): ?><span class="sb-badge"><?= $estoque_critico ?></span><?php endif; ?></a>
+        <a href="admin_categorias.php" class="sb-item">🏷️ Categorias</a>
+        <a href="admin_colecoes.php"   class="sb-item">✨ Coleções</a>
+        <a href="admin_marcas.php"     class="sb-item">🔖 Marcas</a>
+    </div>
+    <div class="sb-section">
+        <span class="sb-section-title">Usuários</span>
+        <a href="admin_clientes.php" class="sb-item">👥 Clientes</a>
+        <a href="admin_admins.php"   class="sb-item">🛡️ Administradores</a>
+    </div>
+    <div class="sb-section">
+        <span class="sb-section-title">Marketing</span>
+        <a href="admin_cupons.php"             class="sb-item">🎟️ Cupons</a>
+        <a href="admin_campanhas_sazonais.php" class="sb-item">🎄 Campanhas</a>
+        <a href="admin_avaliacoes.php"         class="sb-item">⭐ Avaliações</a>
+    </div>
+    <div class="sb-section">
+        <span class="sb-section-title">Sistema</span>
+        <a href="admin_relatorios_v2.php"        class="sb-item active">📈 Relatórios</a>
+        <a href="admin_logs.php"                 class="sb-item">🔍 Logs</a>
+        <a href="admin_configuracoes.php"        class="sb-item">⚙️ Configurações</a>
+        <a href="admin_configuracoes_alertas.php"class="sb-item">🔔 Config. Alertas</a>
+    </div>
+    <div class="sb-footer">
+        <div class="sb-user">
+            <div class="sb-avatar"><?= strtoupper(substr($_SESSION['usuario_nome']??'A',0,1)) ?></div>
+            <div class="sb-user-info">
+                <small><?= strtoupper($_SESSION['usuario_nivel']??'admin') ?></small>
+                <strong><?= explode(' ',$_SESSION['usuario_nome']??'Admin')[0] ?></strong>
+            </div>
+        </div>
+        <a href="index.php"  class="sb-item">🏪 Ver Loja</a>
+        <a href="logout.php" class="sb-item" style="color:var(--danger);">🚪 Sair</a>
+    </div>
+</aside>
 
 <main class="admin-main">
     <div class="admin-topbar">
         <div>
             <h1>Relatórios</h1>
-            <p>Análise completa de vendas, produtos e clientes.</p>
+            <p>Análise completa do desempenho da Alto Jordão.</p>
         </div>
     </div>
 
-    <!-- FILTROS -->
-    <form method="GET" class="filter-bar">
-        <input type="hidden" name="tipo" value="<?= $tipo ?>">
-        <div class="filter-group">
-            <label>Período rápido</label>
-            <select name="periodo" onchange="this.form.submit()">
-                <option value="7"   <?= $periodo=='7'  ?'selected':''?>>Últimos 7 dias</option>
-                <option value="30"  <?= $periodo=='30' ?'selected':''?>>Últimos 30 dias</option>
-                <option value="90"  <?= $periodo=='90' ?'selected':''?>>Últimos 3 meses</option>
-                <option value="365" <?= $periodo=='365'?'selected':''?>>Último ano</option>
-            </select>
-        </div>
-        <div class="filter-group">
-            <label>Data Início</label>
-            <input type="date" name="data_ini" value="<?= $data_ini ?>">
-        </div>
-        <div class="filter-group">
-            <label>Data Fim</label>
-            <input type="date" name="data_fim" value="<?= $data_fim ?>">
-        </div>
+    <!-- Abas -->
+    <div class="aba-nav">
+        <a href="?aba=vendas&periodo=<?= $periodo ?>"   class="aba-btn <?= $aba==='vendas'  ?'active':''?>">📊 Comparativo de Vendas</a>
+        <a href="?aba=produtos&periodo=<?= $periodo ?>" class="aba-btn <?= $aba==='produtos'?'active':''?>">⚠️ Desempenho de Produtos</a>
+        <a href="?aba=margem&periodo=<?= $periodo ?>"   class="aba-btn <?= $aba==='margem'  ?'active':''?>">💰 Margem de Lucro</a>
+    </div>
+
+    <!-- Filtro de período -->
+    <form method="GET" class="periodo-bar">
+        <input type="hidden" name="aba" value="<?= $aba ?>">
+        <label>Período:</label>
+        <select name="periodo" onchange="this.form.submit()">
+            <option value="7"      <?= $periodo==='7'     ?'selected':''?>>Últimos 7 dias</option>
+            <option value="30"     <?= $periodo==='30'    ?'selected':''?>>Últimos 30 dias</option>
+            <option value="90"     <?= $periodo==='90'    ?'selected':''?>>Últimos 90 dias</option>
+            <option value="365"    <?= $periodo==='365'   ?'selected':''?>>Último ano</option>
+            <option value="custom" <?= $periodo==='custom'?'selected':''?>>Personalizado</option>
+        </select>
+        <?php if($periodo==='custom'): ?>
+        <label>De:</label>
+        <input type="date" name="data_ini" value="<?= $data_ini ?>">
+        <label>Até:</label>
+        <input type="date" name="data_fim" value="<?= $data_fim ?>">
         <button type="submit" class="btn-admin-primary">Aplicar</button>
+        <?php endif; ?>
     </form>
 
-    <!-- TABS DE TIPO -->
-    <div class="report-tabs">
-        <a href="?tipo=vendas&data_ini=<?= $data_ini ?>&data_fim=<?= $data_fim ?>"    class="tab-btn <?= $tipo==='vendas'   ?'active':''?>">📊 Vendas</a>
-        <a href="?tipo=produtos&data_ini=<?= $data_ini ?>&data_fim=<?= $data_fim ?>"  class="tab-btn <?= $tipo==='produtos' ?'active':''?>">👕 Produtos</a>
-        <a href="?tipo=clientes&data_ini=<?= $data_ini ?>&data_fim=<?= $data_fim ?>"  class="tab-btn <?= $tipo==='clientes' ?'active':''?>">👥 Clientes</a>
-        <a href="?tipo=financeiro&data_ini=<?= $data_ini ?>&data_fim=<?= $data_fim ?>" class="tab-btn <?= $tipo==='financeiro'?'active':''?>">💰 Financeiro</a>
-    </div>
-
-    <!-- KPIs -->
-    <div class="kpi-grid">
-        <div class="kpi-card featured">
-            <div class="kpi-icon">💵</div>
-            <div class="kpi-label">Receita no Período</div>
-            <div class="kpi-value">R$ <?= number_format($receita_total,2,',','.') ?></div>
-            <div class="kpi-sub"><?= $pedidos_total ?> pedidos confirmados</div>
+    <?php if($aba === 'vendas'): ?>
+    <!-- Aba: comparativo de vendas -->
+    <div class="comp-grid">
+        <div class="comp-card">
+            <div class="comp-label">Receita</div>
+            <div class="comp-atual">R$ <?= number_format($atual['receita'],2,',','.') ?></div>
+            <div class="comp-ant">Anterior: R$ <?= number_format($anterior['receita'],2,',','.') ?></div>
+            <?= variacao($atual['receita'], $anterior['receita']) ?>
         </div>
-        <div class="kpi-card">
-            <div class="kpi-icon">🎯</div>
-            <div class="kpi-label">Ticket Médio</div>
-            <div class="kpi-value">R$ <?= number_format($ticket_medio,2,',','.') ?></div>
-            <div class="kpi-sub">Por pedido pago</div>
+        <div class="comp-card">
+            <div class="comp-label">Pedidos</div>
+            <div class="comp-atual"><?= $atual['total_pedidos'] ?></div>
+            <div class="comp-ant">Anterior: <?= $anterior['total_pedidos'] ?></div>
+            <?= variacao($atual['total_pedidos'], $anterior['total_pedidos']) ?>
         </div>
-        <div class="kpi-card">
-            <div class="kpi-icon">📅</div>
-            <div class="kpi-label">Média Diária</div>
-            <div class="kpi-value">R$ <?= number_format($media_diaria,2,',','.') ?></div>
-            <div class="kpi-sub"><?= $dias_no_periodo ?> dias no período</div>
+        <div class="comp-card">
+            <div class="comp-label">Ticket Médio</div>
+            <div class="comp-atual">R$ <?= number_format($atual['ticket_medio'],2,',','.') ?></div>
+            <div class="comp-ant">Anterior: R$ <?= number_format($anterior['ticket_medio'],2,',','.') ?></div>
+            <?= variacao($atual['ticket_medio'], $anterior['ticket_medio']) ?>
         </div>
-        <div class="kpi-card">
-            <div class="kpi-icon">💡</div>
-            <div class="kpi-label">Lucro Estimado</div>
-            <div class="kpi-value" style="color:var(--success);">R$ <?= number_format($lucro_total,2,',','.') ?></div>
-            <div class="kpi-sub">Baseado no custo dos produtos</div>
+        <div class="comp-card">
+            <div class="comp-label">Clientes Únicos</div>
+            <div class="comp-atual"><?= $atual['clientes_unicos'] ?></div>
+            <div class="comp-ant">Anterior: <?= $anterior['clientes_unicos'] ?></div>
+            <?= variacao($atual['clientes_unicos'], $anterior['clientes_unicos']) ?>
         </div>
     </div>
 
-    <?php if($tipo === 'vendas' || $tipo === 'financeiro'): ?>
-    <!-- GRÁFICO RECEITA -->
-    <div class="two-col">
-        <div class="admin-card">
-            <div class="card-header">
-                <span class="card-title">Receita por Dia</span>
-            </div>
-            <canvas id="chartReceita" height="120"></canvas>
-        </div>
-        <div class="admin-card">
-            <div class="card-header">
-                <span class="card-title">Pedidos por Dia</span>
-            </div>
-            <canvas id="chartPedidos" height="120"></canvas>
-        </div>
+    <div class="admin-card">
+        <div class="card-header"><span class="card-title">Receita Diária — Período Atual vs Anterior</span></div>
+        <canvas id="graficoComparativo" height="80"></canvas>
     </div>
 
-    <!-- TABELA DIÁRIA -->
+    <script>
+    const labelsAtual = <?= json_encode(array_column($grafico_atual, 'dia')) ?>;
+    const valAtual    = <?= json_encode(array_map(fn($r)=>(float)$r['receita'], $grafico_atual)) ?>;
+    const labelsAnt   = <?= json_encode(array_column($grafico_anterior, 'dia')) ?>;
+    const valAnt      = <?= json_encode(array_map(fn($r)=>(float)$r['receita'], $grafico_anterior)) ?>;
+
+    // Usa as labels do período atual; alinha anterior por posição
+    new Chart(document.getElementById('graficoComparativo'), {
+        type: 'line',
+        data: {
+            labels: labelsAtual.length ? labelsAtual : labelsAnt,
+            datasets: [
+                { label: 'Período Atual', data: valAtual, borderColor:'#000', backgroundColor:'rgba(0,0,0,.05)', tension:.3, fill:true },
+                { label: 'Período Anterior', data: valAnt, borderColor:'#bbb', borderDash:[5,5], tension:.3, fill:false }
+            ]
+        },
+        options: { plugins:{ legend:{position:'top'} }, scales:{ y:{ beginAtZero:true } } }
+    });
+    </script>
+
+    <?php elseif($aba === 'produtos'): ?>
+    <!-- Aba: desempenho de produtos -->
     <div class="admin-card">
         <div class="card-header">
-            <span class="card-title">Resumo Diário</span>
+            <span class="card-title">Ranking de Desempenho de Produtos</span>
+            <span style="font-size:11px; color:var(--muted);">Ordenado por risco — score mais alto = mais problemático</span>
         </div>
-        <table class="data-table">
+        <div style="overflow-x:auto;">
+        <table class="perf-table">
             <thead>
-                <tr><th>Data</th><th>Pedidos</th><th>Receita</th><th>Média por Pedido</th></tr>
+                <tr>
+                    <th>Produto</th>
+                    <th>Vendidos</th>
+                    <th>Devoluções</th>
+                    <th>Taxa Dev.</th>
+                    <th>Nota Média</th>
+                    <th>Neg. Recentes</th>
+                    <th>Score de Risco</th>
+                    <th></th>
+                </tr>
             </thead>
             <tbody>
-                <?php foreach(array_reverse($vendas_periodo) as $v): ?>
-                <tr>
-                    <td style="font-weight:700;"><?= date('d/m/Y', strtotime($v['dia'])) ?></td>
-                    <td><?= $v['pedidos'] ?></td>
-                    <td style="font-weight:800;">R$ <?= number_format($v['receita'],2,',','.') ?></td>
-                    <td style="color:var(--text2);">R$ <?= number_format($v['pedidos']>0 ? $v['receita']/$v['pedidos'] : 0,2,',','.') ?></td>
-                </tr>
-                <?php endforeach; ?>
-                <?php if(empty($vendas_periodo)): ?>
-                <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:40px;">Sem dados no período.</td></tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
-    <?php endif; ?>
-
-    <?php if($tipo === 'produtos'): ?>
-    <!-- TOP PRODUTOS -->
-    <div class="two-col">
-        <div class="admin-card">
-            <div class="card-header"><span class="card-title">Top 10 Produtos</span></div>
-            <?php foreach($top_prod as $i => $p): ?>
-            <div class="rank-row rank-<?= $i+1 ?>">
-                <div class="rank-n"><?= $i+1 ?></div>
-                <img class="rank-img" src="img/produtos/<?= htmlspecialchars($p['imagem']) ?>" onerror="this.style.opacity='.2'">
-                <div class="rank-info">
-                    <div class="rank-name"><?= htmlspecialchars($p['nome']) ?></div>
-                    <div class="rank-sub"><?= $p['qtd_vendida'] ?> unidades vendidas</div>
-                </div>
-                <div class="rank-val">R$ <?= number_format($p['receita'],0,',','.') ?></div>
-            </div>
-            <?php endforeach; ?>
-            <?php if(empty($top_prod)): ?><p style="color:var(--muted);text-align:center;padding:30px;font-size:13px;">Sem dados no período.</p><?php endif; ?>
-        </div>
-
-        <div class="admin-card">
-            <div class="card-header"><span class="card-title">Por Categoria</span></div>
-            <?php 
-            $total_cat = array_sum(array_column($por_categoria, 'receita'));
-            foreach($por_categoria as $cat): 
-                $pct = $total_cat > 0 ? ($cat['receita'] / $total_cat * 100) : 0;
+            <?php foreach($produtos_perf as $pp):
+                $vendido  = (int)$pp['total_vendido'];
+                $devs     = (int)$pp['devolucoes'];
+                $nota     = (float)$pp['nota_media'];
+                $neg      = (int)$pp['neg_recentes'];
+                $taxa_dev = $vendido > 0 ? ($devs/$vendido)*100 : 0;
+                $score    = min(100, $taxa_dev*2 + max(0,(3-$nota)*10) + min(20,$neg*5));
+                $score    = round($score);
+                $classe   = $score >= 60 ? 'score-bad' : ($score >= 30 ? 'score-med' : 'score-ok');
+                $cor_bar  = $score >= 60 ? '#ff4d4d' : ($score >= 30 ? '#f59e0b' : '#4caf50');
             ?>
-            <div class="cat-bar">
-                <div class="cat-row">
-                    <span class="cat-name"><?= htmlspecialchars($cat['categoria'] ?: 'Sem categoria') ?></span>
-                    <span class="cat-val">R$ <?= number_format($cat['receita'],0,',','.') ?></span>
-                </div>
-                <div class="progress-bar"><div class="progress-fill" style="width:<?= round($pct) ?>%"></div></div>
-            </div>
+            <tr>
+                <td><strong><?= htmlspecialchars(mb_strimwidth($pp['nome'],0,40,'…')) ?></strong></td>
+                <td><?= $vendido ?></td>
+                <td><?= $devs ?></td>
+                <td><?= round($taxa_dev,1) ?>%</td>
+                <td>
+                    <span class="stars"><?= str_repeat('★', (int)round($nota)) . str_repeat('☆', 5-(int)round($nota)) ?></span>
+                    <small style="color:var(--muted);"> <?= $nota > 0 ? number_format($nota,1) : '—' ?></small>
+                </td>
+                <td><?= $neg > 0 ? "<span style='color:var(--danger);font-weight:800;'>$neg</span>" : '0' ?></td>
+                <td>
+                    <span class="badge-score <?= $classe ?>"><?= $score ?>/100</span>
+                    <div class="score-bar"><div class="score-fill" style="width:<?= $score ?>%;background:<?= $cor_bar ?>;"></div></div>
+                </td>
+                <td><a href="produto.php?id=<?= $pp['id'] ?>" style="font-size:11px; font-weight:800; color:var(--black); text-decoration:none;" target="_blank">Ver →</a></td>
+            </tr>
             <?php endforeach; ?>
-            <?php if(empty($por_categoria)): ?><p style="color:var(--muted);font-size:13px;padding:20px 0;">Sem dados no período.</p><?php endif; ?>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <?php if($tipo === 'clientes'): ?>
-    <!-- TOP CLIENTES -->
-    <div class="admin-card">
-        <div class="card-header"><span class="card-title">Top 10 Clientes por Faturamento</span></div>
-        <table class="data-table">
-            <thead>
-                <tr><th>#</th><th>Cliente</th><th>E-mail</th><th>Pedidos</th><th>Total Gasto</th><th>Última Compra</th></tr>
-            </thead>
-            <tbody>
-                <?php foreach($top_clientes as $i => $c): ?>
-                <tr>
-                    <td style="font-weight:900;color:var(--muted);"><?= $i+1 ?></td>
-                    <td style="font-weight:700;"><?= htmlspecialchars($c['nome']) ?></td>
-                    <td style="color:var(--text2);font-size:12px;"><?= htmlspecialchars($c['email']) ?></td>
-                    <td><?= $c['total_pedidos'] ?></td>
-                    <td style="font-weight:800;">R$ <?= number_format($c['total_gasto'],2,',','.') ?></td>
-                    <td style="color:var(--text2);font-size:12px;"><?= date('d/m/Y',strtotime($c['ultima_compra'])) ?></td>
-                </tr>
-                <?php endforeach; ?>
-                <?php if(empty($top_clientes)): ?>
-                <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:40px;">Sem dados no período.</td></tr>
-                <?php endif; ?>
             </tbody>
         </table>
+        </div>
+    </div>
+
+    <?php elseif($aba === 'margem'): ?>
+    <!-- Aba: margem de lucro -->
+    <div class="kpi-grid" style="margin-bottom:22px;">
+        <div class="kpi-card featured">
+            <div class="kpi-icon">💰</div>
+            <div class="kpi-label">Receita Bruta</div>
+            <div class="kpi-value">R$ <?= number_format($total_receita,2,',','.') ?></div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon">🏭</div>
+            <div class="kpi-label">Custo Total</div>
+            <div class="kpi-value">R$ <?= number_format($total_custo,2,',','.') ?></div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon">🔄</div>
+            <div class="kpi-label">Devoluções (R$)</div>
+            <div class="kpi-value" style="color:var(--danger);">R$ <?= number_format($total_dev_val,2,',','.') ?></div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon">📈</div>
+            <div class="kpi-label">Lucro Líquido Est.</div>
+            <div class="kpi-value" style="color:<?= $lucro_liquido >= 0 ? 'var(--success)' : 'var(--danger)' ?>">
+                R$ <?= number_format($lucro_liquido,2,',','.') ?>
+            </div>
+            <div class="kpi-sub">Margem: <?= round($margem_geral,1) ?>%</div>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <div class="card-header"><span class="card-title">Margem por Produto (Top 30 por Receita)</span></div>
+        <div style="overflow-x:auto;">
+        <table class="perf-table">
+            <thead>
+                <tr>
+                    <th>Produto</th>
+                    <th>Qtd Vendida</th>
+                    <th>Receita</th>
+                    <th>Custo Total</th>
+                    <th>Devoluções</th>
+                    <th>Lucro Est.</th>
+                    <th>Margem</th>
+                </tr>
+            </thead>
+            <tbody>
+            <?php foreach($margem_dados as $m):
+                $lucro = $m['receita'] - $m['custo_total'] - $m['valor_devolvido'];
+                $margem_p = $m['receita'] > 0 ? ($lucro / $m['receita']) * 100 : 0;
+                $cor_mg = $margem_p >= 30 ? 'var(--success)' : ($margem_p >= 15 ? 'var(--warning)' : 'var(--danger)');
+            ?>
+            <tr>
+                <td><strong><?= htmlspecialchars(mb_strimwidth($m['nome'],0,38,'…')) ?></strong></td>
+                <td><?= $m['qtd_vendida'] ?></td>
+                <td>R$ <?= number_format($m['receita'],2,',','.') ?></td>
+                <td>R$ <?= number_format($m['custo_total'],2,',','.') ?></td>
+                <td><?= $m['devolucoes'] > 0 ? "<span style='color:var(--danger);'>{$m['devolucoes']}</span>" : '0' ?></td>
+                <td style="font-weight:800; color:<?= $lucro >= 0 ? 'var(--success)' : 'var(--danger)' ?>">
+                    R$ <?= number_format($lucro,2,',','.') ?>
+                </td>
+                <td style="font-weight:800; color:<?= $cor_mg ?>">
+                    <?= $m['custo_total'] > 0 ? round($margem_p,1).'%' : '<span style="color:var(--muted)">S/custo</span>' ?>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+            <?php if(empty($margem_dados)): ?>
+            <tr><td colspan="7" style="text-align:center; padding:40px; color:var(--muted);">Nenhuma venda no período selecionado.</td></tr>
+            <?php endif; ?>
+            </tbody>
+        </table>
+        </div>
     </div>
     <?php endif; ?>
 
 </main>
 
 <script src="script.js?v=<?= time() ?>"></script>
-<script>
-<?php if($tipo === 'vendas' || $tipo === 'financeiro'): ?>
-const chartOpts = (color) => ({
-    responsive: true,
-    plugins: { legend: { display: false }, tooltip: {
-        backgroundColor:'#fff', titleColor:'#999', bodyColor:'#000',
-        borderColor:'#e5e5e5', borderWidth:1, padding:12,
-        callbacks: { label: c => 'R$ ' + c.raw.toLocaleString('pt-br',{minimumFractionDigits:2}) }
-    }},
-    scales: {
-        y: { beginAtZero:true, grid:{color:'#f0f0f0'}, ticks:{color:'#aaa'} },
-        x: { grid:{display:false}, ticks:{color:'#aaa', maxRotation:0, maxTicksLimit:10} }
-    }
-});
-
-new Chart(document.getElementById('chartReceita').getContext('2d'), {
-    type: 'line',
-    data: {
-        labels: <?= $graf_labels ?>,
-        datasets: [{ data: <?= $graf_receita ?>, borderColor:'#000', backgroundColor:'rgba(0,0,0,0.03)', fill:true, tension:0.4, borderWidth:2.5, pointRadius:3, pointBackgroundColor:'#000', pointBorderColor:'#fff', pointBorderWidth:2 }]
-    },
-    options: chartOpts()
-});
-
-new Chart(document.getElementById('chartPedidos').getContext('2d'), {
-    type: 'bar',
-    data: {
-        labels: <?= $graf_labels ?>,
-        datasets: [{ data: <?= $graf_pedidos ?>, backgroundColor:'rgba(0,0,0,0.08)', borderRadius:8, borderSkipped:false }]
-    },
-    options: {
-        responsive: true,
-        plugins: { legend:{display:false}, tooltip:{ backgroundColor:'#fff', titleColor:'#999', bodyColor:'#000', borderColor:'#e5e5e5', borderWidth:1, padding:12 }},
-        scales: {
-            y: { beginAtZero:true, grid:{color:'#f0f0f0'}, ticks:{color:'#aaa', stepSize:1} },
-            x: { grid:{display:false}, ticks:{color:'#aaa', maxRotation:0, maxTicksLimit:10} }
-        }
-    }
-});
-<?php endif; ?>
-</script>
 </body>
 </html>

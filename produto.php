@@ -85,6 +85,7 @@ if ($usuario_logado) {
         $ja_avaliou = (bool)$check->fetchColumn();
     } catch (Exception $e) {}
 }
+?>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

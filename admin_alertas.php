@@ -7,7 +7,7 @@ if (!isset($_SESSION['usuario_nivel']) ||
     header("Location: login.php"); exit;
 }
 
-// ── MARCAR LIDO ───────────────────────────────────────────
+// MARCAR LIDO 
 if (isset($_GET['marcar_lido'])) {
     $pdo->prepare("UPDATE alertas SET lido=1, lido_por=?, lido_em=NOW() WHERE id=?")
         ->execute([$_SESSION['usuario_id'], (int)$_GET['marcar_lido']]);
@@ -19,7 +19,7 @@ if (isset($_GET['marcar_todos'])) {
     header("Location: admin_alertas.php?msg=todos_lidos"); exit;
 }
 
-// ── DISPARAR ANÁLISE MANUAL ───────────────────────────────
+// DISPARAR ANÁLISE MANUAL 
 if (isset($_GET['rodar_analise']) && $_SESSION['usuario_nivel'] === 'superadmin') {
     ob_start();
     include 'analisar_produtos.php';
@@ -27,7 +27,7 @@ if (isset($_GET['rodar_analise']) && $_SESSION['usuario_nivel'] === 'superadmin'
     header("Location: admin_alertas.php?msg=analise_ok"); exit;
 }
 
-// ── FILTROS ───────────────────────────────────────────────
+// FILTROS 
 $filtro_tipo  = $_GET['tipo']   ?? '';
 $filtro_nivel = $_GET['nivel']  ?? '';
 $filtro_lido  = $_GET['lido']   ?? 'nao';

@@ -27,32 +27,64 @@ $coresDisponiveis = array_filter(array_map('trim', explode(',', $strCor)));
 $produtoJson = htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8');
 
 // ── AVALIAÇÕES DO BANCO ───────────────────────
-$avaliacoes = $pdo->prepare("
-    SELECT a.*, 
-           COALESCE(u.nome, a.titulo) as autor
-    FROM avaliacoes a
-    LEFT JOIN usuarios u ON a.usuario_id = u.id
-    WHERE a.produto_id = ? AND a.status = 'aprovado'
-    ORDER BY a.data DESC
-");
-$avaliacoes->execute([$id]);
-$avaliacoes = $avaliacoes->fetchAll(PDO::FETCH_ASSOC);
 
-// Média e total
-$total_aval  = count($avaliacoes);
-$media_notas = $total_aval > 0 ? round(array_sum(array_column($avaliacoes, 'nota')) / $total_aval, 1) : 0;
+// ── AVALIAÇÕES DO BANCO ───────────────────────────────────
+$avaliacoes = [];
+$total_aval  = 0;
+$media_notas = 0;
 
-// Usuário logado
-$usuario_logado   = isset($_SESSION['usuario_id']);
-$usuario_nome     = $_SESSION['usuario_nome'] ?? '';
-$ja_avaliou       = false;
-if ($usuario_logado) {
-    $check = $pdo->prepare("SELECT id FROM avaliacoes WHERE produto_id = ? AND usuario_id = ?");
-    $check->execute([$id, $_SESSION['usuario_id']]);
-    $ja_avaliou = (bool)$check->fetchColumn();
+try {
+    // Garante que a tabela existe antes de consultar
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS avaliacoes (
+            id          INT AUTO_INCREMENT PRIMARY KEY,
+            produto_id  INT             NOT NULL,
+            usuario_id  INT             DEFAULT NULL,
+            pedido_id   INT             DEFAULT NULL,
+            nota        TINYINT         NOT NULL,
+            titulo      VARCHAR(150)    DEFAULT NULL,
+            comentario  TEXT            DEFAULT NULL,
+            status      ENUM('pendente','aprovado','reprovado') DEFAULT 'pendente',
+            data        DATETIME        DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_produto (produto_id),
+            INDEX idx_status  (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+
+    $stmtAval = $pdo->prepare("
+        SELECT a.*,
+               COALESCE(u.nome, a.titulo, 'Anônimo') as autor
+        FROM avaliacoes a
+        LEFT JOIN usuarios u ON a.usuario_id = u.id
+        WHERE a.produto_id = ?
+          AND a.status = 'aprovado'
+        ORDER BY a.data DESC
+    ");
+    $stmtAval->execute([$id]);
+    $avaliacoes  = $stmtAval->fetchAll(PDO::FETCH_ASSOC);
+    $total_aval  = count($avaliacoes);
+    $media_notas = $total_aval > 0
+        ? round(array_sum(array_column($avaliacoes, 'nota')) / $total_aval, 1)
+        : 0;
+
+} catch (Exception $e) {
+    error_log("[PRODUTO AVALIACOES ERROR] produto_id=$id: " . $e->getMessage());
 }
-?>
-<html lang="pt-br">
+
+// Usuário logado — verifica se já avaliou
+$usuario_logado = isset($_SESSION['usuario_id']);
+$usuario_nome   = $_SESSION['usuario_nome'] ?? '';
+$ja_avaliou     = false;
+
+if ($usuario_logado) {
+    try {
+        $check = $pdo->prepare(
+            "SELECT id FROM avaliacoes WHERE produto_id = ? AND usuario_id = ?"
+        );
+        $check->execute([$id, $_SESSION['usuario_id']]);
+        $ja_avaliou = (bool)$check->fetchColumn();
+    } catch (Exception $e) {}
+}
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -135,9 +167,7 @@ if ($usuario_logado) {
                     $corChave = strtolower($corNome);
                     $coresMap = [
                         'preto'=>'black', 'branco'=>'white', 'azul'=>'blue', 'vermelho'=>'red', 
-                        'cinza'=>'#808080', 'marrom'=>'#8B4513', 'verde'=>'green', 'amarelo'=>'yellow', 'rosa'=>'#FCE3ED',
-                        'creme'=>'#FDFBF7', 'azul claro'=>'#5A86AD', 'azul escuro'=>'#1560BD', 'vinho'=>'#4A000B', 'azul royal'=>'#111E6C',
-                        'space orange'=>'#FF5F1F', 
+                        'cinza'=>'#808080', 'marrom'=>'#8B4513', 'verde'=>'green', 'amarelo'=>'yellow'
                     ];
                     $corCss = $coresMap[$corChave] ?? $corChave;
                 ?>
@@ -175,6 +205,12 @@ if ($usuario_logado) {
         </div>
     <?php endforeach; ?>
 </section>
+
+<div class="divider">
+    <h2>Avaliações</h2>
+    <div class="line"></div>
+</div>
+
 
 <!-- ── SEÇÃO DE AVALIAÇÕES ───────────────────── -->
 <div class="divider">

@@ -73,6 +73,8 @@ $pag_ativa = $pagina_atual ?? '';
         <a href="admin_relatorios.php" class="sb-item <?= $pag_ativa === 'relatorios' ? 'active' : '' ?>">📈 Relatórios</a>
         <a href="admin_logs.php" class="sb-item <?= $pag_ativa === 'logs' ? 'active' : '' ?>">🔍 Logs & Auditoria</a>
         <a href="admin_configuracoes.php" class="sb-item <?= $pag_ativa === 'configuracoes' ? 'active' : '' ?>">⚙️ Configurações</a>
+        <a href="admin_alertas.php" class="sb-item <?= $pag_ativa === 'alertas' ? 'active' : '' ?>">🚨 Alertas</a>
+        <a href="admin_configuracoes_alertas.php"class="sb-item <?= $pag_ativa === 'config.alertas' ? 'active' : '' ?>">🔔 Config. Alertas</a>
     </div>
 
     <div class="sb-footer">

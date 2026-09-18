@@ -59,7 +59,7 @@ $pag_ativa = $pagina_atual ?? '';
 
     <div class="sb-section">
         <span class="sb-section-title">Usuários</span>
-        <a href="admin_admins.php" class="sb-item <?= $pag_ativa === 'admins' ? 'active' : '' ?>">🛡️ Administradores</a>
+        <a href="admin_admins.php" class="sb-item <?= $pag_ativa === 'admin_admins' ? 'active' : '' ?>">🛡️ Administradores</a>
     </div>
 
     <div class="sb-section">

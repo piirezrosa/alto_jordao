@@ -1,96 +1,99 @@
 <?php
 /**
- *  ALTO JORDÃO — Processador de Pedidos com Fallback
- *  Gateway primário:   Mercado Pago
- *  Gateway secundário: PagSeguro (acionado automaticamente
- *                      se o MP falhar ou retornar erro)
+ * Processar Pedido — Alto Jordão
+ * Aceita tanto POST de formulário HTML (checkout.php)
+ * quanto JSON (checkout com SDK do MP, futuro).
+ * Funciona com ou sem gateway configurado.
  */
-
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
-require_once 'mercadopago.php';
-require_once 'pagseguro.php';
-
-header('Content-Type: application/json');
 
 if (!isset($_SESSION['usuario_id'])) {
-    echo json_encode(['sucesso' => false, 'erro' => 'Sessão expirada. Faça login novamente.']);
-    exit;
-}
-
-// LER JSON DO BODY 
-$dados = json_decode(file_get_contents('php://input'), true);
-
-if (!$dados || empty($dados['carrinho'])) {
-    echo json_encode(['sucesso' => false, 'erro' => 'Carrinho vazio ou dados inválidos.']);
-    exit;
+    header("Location: login.php"); exit;
 }
 
 $usuario_id = $_SESSION['usuario_id'];
-$metodo     = $dados['metodo'] ?? 'pix';
-$carrinho   = $dados['carrinho'];
 
-// BUSCAR USUÁRIO 
-$usuario = $pdo->prepare("SELECT * FROM usuarios WHERE id = ?");
-$usuario->execute([$usuario_id]);
-$usuario = $usuario->fetch(PDO::FETCH_ASSOC);
+// ── LER DADOS (form POST ou JSON) ────────────────────────
+$is_json = str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'application/json');
 
-if (!$usuario) {
-    echo json_encode(['sucesso' => false, 'erro' => 'Usuário não encontrado.']);
-    exit;
-}
-
-// Atualiza CPF e telefone
-if (!empty($dados['cpf'])) {
-    $pdo->prepare("UPDATE usuarios SET cpf = ?, telefone = ? WHERE id = ?")
-        ->execute([$dados['cpf'], $dados['telefone'] ?? '', $usuario_id]);
-    $usuario['cpf']      = $dados['cpf'];
-    $usuario['telefone'] = $dados['telefone'] ?? '';
-}
-
-// SALVAR / ATUALIZAR ENDEREÇO
-$end = [
-    'cep'    => $dados['cep']    ?? '',
-    'rua'    => $dados['rua']    ?? '',
-    'numero' => $dados['numero'] ?? '',
-    'bairro' => $dados['bairro'] ?? '',
-    'cidade' => $dados['cidade'] ?? '',
-    'estado' => $dados['estado'] ?? '',
-];
-
-$checkEnd = $pdo->prepare("SELECT id FROM enderecos WHERE usuario_id = ?");
-$checkEnd->execute([$usuario_id]);
-
-if ($checkEnd->fetchColumn()) {
-    $pdo->prepare("UPDATE enderecos SET cep=?,rua=?,numero=?,bairro=?,cidade=?,estado=? WHERE usuario_id=?")
-        ->execute([$end['cep'],$end['rua'],$end['numero'],$end['bairro'],$end['cidade'],$end['estado'],$usuario_id]);
+if ($is_json) {
+    $dados   = json_decode(file_get_contents('php://input'), true) ?? [];
+    $metodo  = $dados['metodo']     ?? 'pix';
+    $carrinho= $dados['carrinho']   ?? [];
+    $cep     = $dados['cep']        ?? '';
+    $rua     = $dados['rua']        ?? '';
+    $numero  = $dados['numero']     ?? '';
+    $bairro  = $dados['bairro']     ?? '';
+    $cidade  = $dados['cidade']     ?? '';
+    $estado  = $dados['estado']     ?? '';
+    $cpf     = $dados['cpf']        ?? '';
+    $telefone= $dados['telefone']   ?? '';
 } else {
-    $pdo->prepare("INSERT INTO enderecos (usuario_id,cep,rua,numero,bairro,cidade,estado) VALUES (?,?,?,?,?,?,?)")
-        ->execute([$usuario_id,$end['cep'],$end['rua'],$end['numero'],$end['bairro'],$end['cidade'],$end['estado']]);
+    // Formulário HTML padrão
+    $metodo   = $_POST['pagamento']      ?? 'pix';
+    $cpf      = $_POST['cpf']            ?? '';
+    $telefone = $_POST['telefone']       ?? '';
+    $cep      = $_POST['cep']            ?? '';
+    $rua      = $_POST['rua']            ?? $_POST['endereco'] ?? '';
+    $numero   = $_POST['numero']         ?? '';
+    $bairro   = $_POST['bairro']         ?? '';
+    $cidade   = $_POST['cidade']         ?? '';
+    $estado   = $_POST['estado']         ?? '';
+    $carrinho = json_decode($_POST['carrinho_dados'] ?? '[]', true) ?? [];
 }
 
-// CALCULAR TOTAL
+// ── VALIDAÇÕES ────────────────────────────────────────────
+if (empty($carrinho)) {
+    header("Location: carrinho.php?erro=carrinho_vazio"); exit;
+}
+if (!in_array($metodo, ['pix','cartao','boleto'])) {
+    $metodo = 'pix';
+}
+
+// ── ATUALIZA CPF/TELEFONE DO USUÁRIO ─────────────────────
+$cpf_limpo = preg_replace('/\D/', '', $cpf);
+if ($cpf_limpo) {
+    $pdo->prepare("UPDATE usuarios SET cpf = ?, telefone = ? WHERE id = ?")
+        ->execute([$cpf_limpo, $telefone, $usuario_id]);
+}
+
+// ── SALVA / ATUALIZA ENDEREÇO ─────────────────────────────
+$cep_limpo = preg_replace('/\D/', '', $cep);
+if ($cep_limpo) {
+    $chk = $pdo->prepare("SELECT id FROM enderecos WHERE usuario_id = ?");
+    $chk->execute([$usuario_id]);
+    if ($chk->fetchColumn()) {
+        $pdo->prepare("UPDATE enderecos SET cep=?,rua=?,numero=?,bairro=?,cidade=?,estado=? WHERE usuario_id=?")
+            ->execute([$cep_limpo, $rua, $numero, $bairro, $cidade, $estado, $usuario_id]);
+    } else {
+        $pdo->prepare("INSERT INTO enderecos (usuario_id,cep,rua,numero,bairro,cidade,estado) VALUES (?,?,?,?,?,?,?)")
+            ->execute([$usuario_id, $cep_limpo, $rua, $numero, $bairro, $cidade, $estado]);
+    }
+}
+
+// ── CALCULAR TOTAL ────────────────────────────────────────
 $subtotal = 0;
 foreach ($carrinho as $item) {
-    $subtotal += (float)$item['preco'] * (int)($item['qtd'] ?? 1);
+    $subtotal += (float)($item['preco'] ?? 0) * (int)($item['qtd'] ?? 1);
 }
 
 $desconto = ($metodo === 'pix') ? round($subtotal * 0.05, 2) : 0;
 $total    = round($subtotal - $desconto, 2);
 
-// CRIAR PEDIDO NO BANCO
+// ── CRIAR PEDIDO ──────────────────────────────────────────
 try {
     $pdo->beginTransaction();
 
     $pdo->prepare("
         INSERT INTO pedidos
             (usuario_id, status, total, subtotal, desconto, forma_pagamento,
-             end_cep, end_rua, end_numero, end_bairro, end_cidade, end_estado)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+             end_cep, end_rua, end_numero, end_bairro, end_cidade, end_estado,
+             status_pagamento, data_pedido)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'pendente',NOW())
     ")->execute([
         $usuario_id, 'pendente', $total, $subtotal, $desconto, $metodo,
-        $end['cep'], $end['rua'], $end['numero'],
-        $end['bairro'], $end['cidade'], $end['estado'],
+        $cep_limpo, $rua, $numero, $bairro, $cidade, $estado,
     ]);
 
     $pedido_id = $pdo->lastInsertId();
@@ -101,10 +104,20 @@ try {
     ");
 
     foreach ($carrinho as $item) {
-        $vars = ($item['tamanho_escolhido'] ?? 'Único') . ' | ' . ($item['cor_escolhida'] ?? 'Padrão');
+        $produto_id = (int)($item['id'] ?? 0);
+        if (!$produto_id) continue;
+
+        $variacoes = trim(
+            ($item['tamanho_escolhido'] ?? '') . ' ' .
+            ($item['cor_escolhida']     ?? '')
+        ) ?: 'Padrão';
+
         $stmtItem->execute([
-            $pedido_id, (int)$item['id'],
-            (int)($item['qtd'] ?? 1), (float)$item['preco'], $vars,
+            $pedido_id,
+            $produto_id,
+            (int)($item['qtd'] ?? 1),
+            (float)($item['preco'] ?? 0),
+            $variacoes,
         ]);
     }
 
@@ -112,223 +125,65 @@ try {
 
 } catch (Exception $e) {
     $pdo->rollBack();
-    echo json_encode(['sucesso' => false, 'erro' => 'Erro ao registrar pedido. Tente novamente.']);
-    exit;
+    error_log("[PEDIDO ERROR] usuario=$usuario_id: " . $e->getMessage());
+    header("Location: checkout.php?erro=erro_interno"); exit;
 }
 
-$pedido_arr = ['id' => $pedido_id, 'total' => $total];
+// ── TENTAR PROCESSAR PAGAMENTO (se gateway configurado) ───
+$gateway_resultado = null;
+$gateway_erro      = null;
 
-//  FUNÇÃO DE FALLBACK AUTOMÁTICO
-/**
- * Tenta o Mercado Pago. Se falhar (erro de rede, API fora,
- * erro HTTP), tenta o PagSeguro automaticamente.
- * Registra qual gateway foi usado em cada tentativa.
- */
-function processarComFallback(
-    string $metodo,
-    array  $pedido_arr,
-    array  $usuario,
-    array  $end,
-    array  $carrinho,
-    array  $dados,
-    PDO    $pdo
-): array {
+$mp_configurado = defined('MP_ACCESS_TOKEN')
+    && MP_ACCESS_TOKEN !== ''
+    && MP_ACCESS_TOKEN !== 'SEU_ACCESS_TOKEN_AQUI';
 
-    $pedido_id = $pedido_arr['id'];
-    $resultado = null;
-    $gateway   = null;
+if ($mp_configurado && file_exists(__DIR__ . '/mercadopago.php')) {
+    require_once 'mercadopago.php';
 
-    // TENTATIVA 1: MERCADO PAGO 
+    $usuario_dados = $pdo->prepare("SELECT * FROM usuarios WHERE id = ?");
+    $usuario_dados->execute([$usuario_id]);
+    $usuario_dados = $usuario_dados->fetch(PDO::FETCH_ASSOC);
+
+    $pedido_arr = ['id' => $pedido_id, 'total' => $total];
+    $end_arr    = ['cep'=>$cep_limpo,'rua'=>$rua,'numero'=>$numero,'bairro'=>$bairro,'cidade'=>$cidade,'estado'=>$estado];
+
     try {
         switch ($metodo) {
-
             case 'pix':
-                $resultado = MercadoPago::gerarPix($pedido_arr, $usuario);
+                $gateway_resultado = MercadoPago::gerarPix($pedido_arr, $usuario_dados);
                 break;
-
             case 'boleto':
-                $resultado = MercadoPago::gerarBoleto($pedido_arr, $usuario, $end);
+                $gateway_resultado = MercadoPago::gerarBoleto($pedido_arr, $usuario_dados, $end_arr);
                 break;
-
-            case 'cartao':
-                if (empty($dados['token_mp'])) throw new Exception('Token MP ausente');
-                $resultado = MercadoPago::processarCartao(
-                    $pedido_arr, $usuario,
-                    $dados['token_mp'],
-                    (int)($dados['parcelas']          ?? 1),
-                    (string)($dados['issuer_id']      ?? ''),
-                    (string)($dados['payment_method_id'] ?? '')
-                );
-                break;
+            // cartão via form padrão não suporta tokenização — precisa do SDK JS
+            default:
+                $gateway_resultado = null;
         }
-
-        // Considera erro se a API retornou flag de erro
-        if (!empty($resultado['error'])) {
-            throw new Exception($resultado['message'] ?? 'Erro MP');
-        }
-
-        $gateway = 'mercadopago';
-        registrarGatewayLog($pdo, $pedido_id, 'mercadopago', 'sucesso', $metodo);
-
     } catch (Exception $e) {
-
-        // Loga a falha do MP
-        registrarGatewayLog($pdo, $pedido_id, 'mercadopago', 'falha: ' . $e->getMessage(), $metodo);
-        error_log("[GATEWAY FALLBACK] MP falhou no pedido $pedido_id: " . $e->getMessage());
-
-        // TENTATIVA 2: PAGSEGURO
-        try {
-            switch ($metodo) {
-
-                case 'pix':
-                    $resultado = PagSeguro::gerarPix($pedido_arr, $usuario, $end, $carrinho);
-                    break;
-
-                case 'boleto':
-                    $resultado = PagSeguro::gerarBoleto($pedido_arr, $usuario, $end, $carrinho);
-                    break;
-
-                case 'cartao':
-                    if (empty($dados['token_ps'])) {
-                        throw new Exception('Token PS ausente — cliente precisa selecionar gateway PS');
-                    }
-                    $resultado = PagSeguro::processarCartao(
-                        $pedido_arr, $usuario, $end, $carrinho,
-                        $dados['token_ps'],
-                        (int)($dados['parcelas'] ?? 1)
-                    );
-                    break;
-            }
-
-            if (!empty($resultado['error'])) {
-                throw new Exception($resultado['message'] ?? 'Erro PS');
-            }
-
-            $gateway = 'pagseguro';
-            registrarGatewayLog($pdo, $pedido_id, 'pagseguro', 'sucesso (fallback)', $metodo);
-
-        } catch (Exception $e2) {
-            registrarGatewayLog($pdo, $pedido_id, 'pagseguro', 'falha: ' . $e2->getMessage(), $metodo);
-            error_log("[GATEWAY FALLBACK] PS também falhou no pedido $pedido_id: " . $e2->getMessage());
-
-            // Ambos falharam
-            return [
-                'error'   => true,
-                'message' => 'Todos os gateways de pagamento estão indisponíveis no momento. '
-                           . 'Seu pedido foi salvo — tente novamente em alguns minutos.',
-            ];
-        }
-    }
-
-    return array_merge($resultado, ['gateway_usado' => $gateway]);
-}
-
-// LOG DE GATEWAY
-function registrarGatewayLog(PDO $pdo, int $pedido_id, string $gateway, string $status, string $metodo): void
-{
-    try {
-        $pdo->prepare("
-            INSERT INTO logs_sistema (acao, tabela, registro_id, detalhes, ip)
-            VALUES (?, 'pedidos', ?, ?, ?)
-        ")->execute([
-            'gateway_tentativa',
-            $pedido_id,
-            "gateway: $gateway | status: $status | método: $metodo",
-            $_SERVER['REMOTE_ADDR'] ?? 'server',
-        ]);
-    } catch (Exception $e) {
-        error_log("[LOG ERROR] $e");
+        $gateway_erro = $e->getMessage();
+        error_log("[MP ERROR] pedido=$pedido_id: $gateway_erro");
     }
 }
 
-// VALIDAR TOKEN DO CARTÃO
-if ($metodo === 'cartao' && empty($dados['token_mp']) && empty($dados['token_ps'])) {
-    $pdo->prepare("DELETE FROM itens_pedido WHERE pedido_id=?")->execute([$pedido_id]);
-    $pdo->prepare("DELETE FROM pedidos WHERE id=?")->execute([$pedido_id]);
-    echo json_encode(['sucesso' => false, 'erro' => 'Token do cartão não recebido.']);
-    exit;
+// Salva payment_id se disponível
+if (!empty($gateway_resultado['payment_id'])) {
+    $pdo->prepare("UPDATE pedidos SET observacoes = ? WHERE id = ?")
+        ->execute(["mp_payment_id:" . $gateway_resultado['payment_id'], $pedido_id]);
 }
 
-// PROCESSAR COM FALLBACK
-$resultado = processarComFallback(
-    $metodo, $pedido_arr, $usuario, $end, $carrinho, $dados, $pdo
-);
-
-// AMBOS OS GATEWAYS FALHARAM
-if (!empty($resultado['error'])) {
-    echo json_encode(['sucesso' => false, 'erro' => $resultado['message'], 'pedido_id' => $pedido_id]);
-    exit;
-}
-
-// PÓS-PROCESSAMENTO POR MÉTODO/GATEWAY
-$payment_id  = $resultado['payment_id'] ?? $resultado['order_id'] ?? null;
-$status_res  = $resultado['status']     ?? 'pending';
-$gateway     = $resultado['gateway_usado'];
-
-// Salva o payment_id e gateway para o webhook localizar o pedido
-$pdo->prepare("UPDATE pedidos SET observacoes = ? WHERE id = ?")
-    ->execute(["gateway:$gateway|payment_id:$payment_id", $pedido_id]);
-
-// Cartão aprovado na hora (MP: approved | PS: PAID)
-$cartao_aprovado = (
-    $metodo === 'cartao' &&
-    (!empty($resultado['approved']) ||
-     in_array(strtolower($status_res), ['approved','paid']))
-);
-
-if ($cartao_aprovado) {
-    $pdo->prepare("
-        UPDATE pedidos
-        SET status='pago', status_pagamento='aprovado', data_pagamento=NOW()
-        WHERE id=?
-    ")->execute([$pedido_id]);
-}
-
-// Cartão recusado
-$cartao_recusado = (
-    $metodo === 'cartao' &&
-    (($resultado['approved'] ?? true) === false ||
-     in_array(strtolower($status_res), ['rejected','declined','canceled']))
-);
-
-if ($cartao_recusado) {
-    $msg = $gateway === 'mercadopago'
-        ? MercadoPago::traduzirErroCartao($resultado['status_detail'] ?? '')
-        : PagSeguro::traduzirErroCartao($resultado['status_detail'] ?? '');
-    echo json_encode(['sucesso' => false, 'erro' => $msg, 'pedido_id' => $pedido_id]);
-    exit;
-}
-
-// LOG FINAL
+// Log
 $pdo->prepare("INSERT INTO logs_sistema (usuario_id, acao, tabela, registro_id, detalhes, ip) VALUES (?,?,?,?,?,?)")
     ->execute([
         $usuario_id, 'pedido_criado', 'pedidos', $pedido_id,
-        "método: $metodo | gateway: $gateway | payment_id: $payment_id | status: $status_res",
+        "método: $metodo | total: R$$total | gateway: " . ($mp_configurado ? 'MP' : 'sem_gateway'),
         $_SERVER['REMOTE_ADDR'] ?? '',
     ]);
 
-// RESPOSTA FINAL
-$resposta = [
-    'sucesso'       => true,
-    'pedido_id'     => $pedido_id,
-    'metodo'        => $metodo,
-    'payment_id'    => $payment_id,
-    'gateway_usado' => $gateway,
-];
-
-// Dados extras por método
-if ($metodo === 'pix') {
-    // MP retorna base64; PS retorna URL da imagem
-    $resposta['qr_code']    = $resultado['qr_code']    ?? null;
-    $resposta['qr_base64']  = $resultado['qr_base64']  ?? null;
-    $resposta['qr_img_url'] = $resultado['qr_img_url'] ?? null;
-    $resposta['expiracao']  = $resultado['expiracao']  ?? null;
+// ── SALVA DADOS DO GATEWAY NA SESSÃO (para a tela de confirmação) ──
+if ($gateway_resultado) {
+    $_SESSION['mp_payment_data'] = $gateway_resultado;
 }
 
-if ($metodo === 'boleto') {
-    $resposta['boleto_url'] = $resultado['boleto_url'] ?? null;
-    $resposta['barcode']    = $resultado['barcode']    ?? null;
-    $resposta['vencimento'] = $resultado['vencimento'] ?? null;
-}
-
-echo json_encode($resposta);
+// ── REDIRECIONA PARA CONFIRMAÇÃO ──────────────────────────
+header("Location: pedido_confirmado.php?id=$pedido_id&metodo=$metodo");
+exit;

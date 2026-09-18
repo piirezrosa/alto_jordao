@@ -2,7 +2,7 @@
 require_once 'config.php'; 
 
 // BUSCA DINÂMICA: Feminino ou Unissex
-$query = $pdo->prepare("SELECT * FROM produtos WHERE genero IN ('feminino', 'unissex') ORDER BY id DESC");
+$query = $pdo->prepare("SELECT * FROM produtos WHERE genero IN ('feminino') ORDER BY id DESC");
 $query->execute();
 $produtos = $query->fetchAll(PDO::FETCH_ASSOC);
 

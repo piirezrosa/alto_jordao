@@ -12,7 +12,7 @@ $data_fim    = isset($_GET['data_fim'])    ? $_GET['data_fim']    : date('Y-m-d'
 try {
     $stmtPagas = $pdo->prepare("SELECT p.*, u.nome as cliente FROM pedidos p 
                                 JOIN usuarios u ON p.usuario_id = u.id 
-                                WHERE p.status = 'pago' AND DATE(p.data_pedido) BETWEEN ? AND ? 
+                                WHERE p.status = 'entregue' AND DATE(p.data_pedido) BETWEEN ? AND ? 
                                 ORDER BY p.data_pedido DESC");
     $stmtPagas->execute([$data_inicio, $data_fim]);
     $vendasPagas = $stmtPagas->fetchAll(PDO::FETCH_ASSOC);

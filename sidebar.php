@@ -71,6 +71,7 @@ $pag_ativa = $pagina_atual ?? '';
     <div class="sb-section">
         <span class="sb-section-title">Sistema</span>
         <a href="admin_relatorios.php" class="sb-item <?= $pag_ativa === 'relatorios' ? 'active' : '' ?>">📈 Relatórios</a>
+        <a href="gerar_relatorio_criptografado.php" class="sb-item <?= $pag_ativa === 'relatorio.criptografado' ? 'active' : '' ?>">💾 Relatório Criptografado</a>
         <a href="admin_logs.php" class="sb-item <?= $pag_ativa === 'logs' ? 'active' : '' ?>">🔍 Logs & Auditoria</a>
         <a href="admin_configuracoes.php" class="sb-item <?= $pag_ativa === 'configuracoes' ? 'active' : '' ?>">⚙️ Configurações</a>
         <a href="admin_alertas.php" class="sb-item <?= $pag_ativa === 'alertas' ? 'active' : '' ?>">🚨 Alertas</a>

@@ -55,10 +55,32 @@
                             </button>
                         </div>
                         <div class="product-details">
-                            <span class="category"><?= htmlspecialchars($p['categoria']) ?></span>
-                            <h4><?= htmlspecialchars($p['nome']) ?></h4>
-                            <p class="price">R$ <?= number_format($p['preco'], 2, ',', '.') ?></p>
-                        </div>
+                                <p class="category" style="font-size: 10px; color: #999; text-transform: uppercase; margin-bottom: 5px;">
+                                    <?= htmlspecialchars($p['categoria'] ?? 'Originals') ?>
+                                </p>
+                                
+                                <a href="produto.php?id=<?= $p['id'] ?>" style="text-decoration: none; color: inherit;">
+                                    <h4 style="font-weight: 700; margin-bottom: 8px;"><?= htmlspecialchars($p['nome']) ?></h4>
+                                </a>
+                                
+                                <p class="price" style="font-weight: 800; font-size: 1.1rem;">
+                                    R$ <?= number_format($p['preco'], 2, ',', '.') ?>
+                                </p>
+
+                                <?php if (isset($_SESSION['usuario_nivel']) && ($_SESSION['usuario_nivel'] === 'admin' || $_SESSION['usuario_nivel'] === 'superadmin')): ?>
+                                    <div class="admin-actions" style="margin-top: 15px; display: flex; gap: 8px; border-top: 1px solid #eee; padding-top: 10px;">
+                                        <a href="editar_produto.php?id=<?= $p['id'] ?>" 
+                                           style="flex: 1; background: #f1f1f1; color: #000; text-align: center; padding: 10px; border-radius: 5px; text-decoration: none; font-size: 11px; font-weight: bold;">
+                                           EDITAR
+                                        </a>
+                                        <a href="excluir_produto.php?id=<?= $p['id'] ?>" 
+                                           onclick="return confirm('Deseja excluir este produto?')" 
+                                           style="flex: 1; background: #ffebeb; color: #ff4d4d; text-align: center; padding: 10px; border-radius: 5px; text-decoration: none; font-size: 11px; font-weight: bold;">
+                                           EXCLUIR
+                                        </a>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
                     </div>
                 <?php endforeach; ?>
             <?php else: ?>

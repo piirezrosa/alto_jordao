@@ -143,7 +143,7 @@ $end_estado = $user['estado'] ?? '';
         <div class="aviso-gateway">
             <strong>⚠ Gateway de pagamento não configurado</strong>
             O pedido será registrado normalmente, mas o pagamento real não será processado até que
-            você configure as credenciais do Mercado Pago ou PagSeguro em
+            sejam configuradas as credenciais do Mercado Pago ou PagSeguro em
             <code>mercadopago.php</code> / <code>pagseguro.php</code>.
         </div>
         <?php endif; ?>

@@ -1,5 +1,5 @@
 <?php
-define('PS_TOKEN', 'TOKEN_PAGSEGURO_AQUI');
+define('PS_TOKEN', '7312ac40-5b19-4a72-bcb3-4f63523d9c89f542729a4711be1a5295634ea30cba24defd-2a78-4ba7-abd0-793569c88edb');
 define('PS_SANDBOX', true);
 
 define('PS_API_URL', PS_SANDBOX ? 'https://sandbox.api.pagseguro.com' : 'https://api.pagseguro.com');

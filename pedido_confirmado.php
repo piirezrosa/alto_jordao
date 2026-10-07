@@ -249,7 +249,7 @@ $aprovado = ($pedido['status'] === 'pago');
 </div>
 
 <script>
-const METODO     = '<?= $metodo ?>';
+const METODO     = <?= json_encode(in_array($metodo, ['pix','cartao','boleto'], true) ? $metodo : 'pix') ?>;
 const PEDIDO_ID  = <?= $pedido_id ?>;
 const JA_APROVADO= <?= $aprovado ? 'true' : 'false' ?>;
 
@@ -262,8 +262,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (JA_APROVADO) return; // Cartão já aprovado, nada a fazer
 
-    if (METODO === 'pix' && mpData.qr_base64) {
-        document.getElementById('qrCodeImg').src = 'data:image/png;base64,' + mpData.qr_base64;
+    if (METODO === 'pix' && (mpData.qr_base64 || mpData.qr_img_url)) {
+        document.getElementById('qrCodeImg').src = mpData.qr_base64
+            ? 'data:image/png;base64,' + mpData.qr_base64
+            : mpData.qr_img_url;
         document.getElementById('pixCopiaCola').textContent = mpData.qr_code || '';
         if (mpData.expiracao) {
             document.getElementById('pixExpiracao').textContent = '⏱ Expira às ' + mpData.expiracao;

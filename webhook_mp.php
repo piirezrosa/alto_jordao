@@ -89,7 +89,7 @@ switch ($status) {
 
     case 'rejected':
         // Cartão recusado ou PIX expirado
-        $pdo->prepare("UPDATE pedidos SET status = 'cancelado', status_pagamento = 'recusado', observacoes = CONCAT(COALESCE(observacoes, ''), ' | webhook_rejected: $status_detail') WHERE id = ?")->execute(['pedido_id']);
+        $pdo->prepare("UPDATE pedidos SET status = 'cancelado', status_pagamento = 'recusado', observacoes = CONCAT(COALESCE(observacoes, ''), ?) WHERE id = ?")->execute([' | webhook_rejected: ' . $status_detail, $pedido_id]);
         registrarLog($pedido_id, "pagamento_recusado", "payment_id: $payment_id | detalhe: $status_detail");
         break;
 

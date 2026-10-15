@@ -8,7 +8,7 @@ define('MP_SANDBOX', true); // true = testes | false = produção
 define('MP_API_URL', 'https://api.mercadopago.com');
 
 // URL do meu site - usada para redirect e webhook
-define('SITE_URL', 'http://localhost/alto_jordao');
+define('SITE_URL', 'http://localhost/alto_jordao/code');
 
 class MercadoPago {
     /**

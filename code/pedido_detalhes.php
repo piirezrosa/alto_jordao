@@ -99,10 +99,18 @@ $forma  = $formas[$pedido['forma_pagamento']] ?? $pedido['forma_pagamento'];
 
         <div class="det-totais" style="margin-top:18px;">
             <div class="linha"><span>Subtotal</span><span><?= brl($pedido['subtotal'] ?? $pedido['total']) ?></span></div>
-            <?php if ((float)($pedido['desconto'] ?? 0) > 0): ?>
-            <div class="linha"><span>Desconto</span><span>- <?= brl($pedido['desconto']) ?></span></div>
+            <?php $desc_cupom = (float)($pedido['desconto_cupom'] ?? 0);
+                  $desc_pix   = max(0, (float)($pedido['desconto'] ?? 0) - $desc_cupom); ?>
+            <?php if ($desc_cupom > 0): ?>
+            <div class="linha"><span>Cupom <?= e($pedido['cupom_codigo'] ?? '') ?></span><span>- <?= brl($desc_cupom) ?></span></div>
             <?php endif; ?>
-            <div class="linha"><span>Frete</span><span style="color:#27ae60;font-weight:800;">GRÁTIS</span></div>
+            <?php if ($desc_pix > 0): ?>
+            <div class="linha"><span>Desconto PIX</span><span>- <?= brl($desc_pix) ?></span></div>
+            <?php endif; ?>
+            <div class="linha"><span>Frete</span>
+                <?php if ((float)($pedido['frete'] ?? 0) > 0): ?><span><?= brl($pedido['frete']) ?></span>
+                <?php else: ?><span style="color:#27ae60;font-weight:800;">GRÁTIS</span><?php endif; ?>
+            </div>
             <div class="linha final"><span>Total</span><span><?= brl($pedido['total']) ?></span></div>
         </div>
     </section>

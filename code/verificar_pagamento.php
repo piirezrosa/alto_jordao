@@ -6,6 +6,7 @@
  */
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'pedido_helpers.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -47,6 +48,36 @@ if (!$pago && $pedido['status'] === 'pendente'
         }
     } catch (Throwable $e) {
         error_log("[VERIFICAR_PAGAMENTO] pedido=$pedido_id: " . $e->getMessage());
+    }
+}
+
+// PagSeguro: consulta a ordem diretamente (útil em localhost, onde o webhook não chega)
+if (!$pago && $pedido['status'] === 'pendente'
+    && preg_match('/ps_order_id:(ORDE_[A-Za-z0-9-]+)/', (string)$pedido['observacoes'], $m)
+    && is_file(__DIR__ . '/pagseguro.php')) {
+
+    if (is_file(__DIR__ . '/mercadopago.php')) require_once __DIR__ . '/mercadopago.php'; // SITE_URL
+    require_once __DIR__ . '/pagseguro.php';
+    try {
+        $ordem = PagSeguro::consultarPedido($m[1]);
+        if (empty($ordem['error']) && (string)($ordem['reference_id'] ?? '') === "pedido-$pedido_id") {
+            $r = pagseguro_interpretar_ordem($ordem);
+            $st = $pdo->prepare("SELECT total FROM pedidos WHERE id = ?");
+            $st->execute([$pedido_id]);
+            $total_centavos = (int)round(((float)$st->fetchColumn()) * 100);
+
+            if ($r['pago'] && ($r['valor_pago'] === 0 || $r['valor_pago'] === $total_centavos)) {
+                pedido_marcar_pago($pdo, $pedido_id, 'polling_ps_paid');
+                $pago = true;
+                $pedido['status'] = 'pago';
+                $pedido['status_pagamento'] = 'aprovado';
+            } elseif ($r['recusado']) {
+                pedido_cancelar_devolvendo_estoque($pdo, $pedido_id, 'polling_ps_' . strtolower($r['status']));
+                $pedido['status'] = 'cancelado';
+            }
+        }
+    } catch (Throwable $e) {
+        error_log("[VERIFICAR_PAGAMENTO PS] pedido=$pedido_id: " . $e->getMessage());
     }
 }
 

@@ -23,6 +23,9 @@ function pedido_marcar_pago(PDO $pdo, int $pedido_id, string $nota = ''): bool
  */
 function pedido_cancelar_devolvendo_estoque(PDO $pdo, int $pedido_id, string $motivo = ''): bool
 {
+    require_once __DIR__ . '/loja_helpers.php';
+    loja_garantir_schema($pdo);   // fora de transação (ALTER TABLE faz commit implícito)
+
     try {
         $pdo->beginTransaction();
 
@@ -38,6 +41,12 @@ function pedido_cancelar_devolvendo_estoque(PDO $pdo, int $pedido_id, string $mo
             $pdo->rollBack();
             return false;
         }
+
+        // Devolve o uso do cupom (se o pedido usou um)
+        $cp = $pdo->prepare("SELECT cupom_codigo FROM pedidos WHERE id = ?");
+        $cp->execute([$pedido_id]);
+        $cupom = $cp->fetchColumn();
+        if (!empty($cupom)) cupom_liberar($pdo, (string)$cupom);
 
         $itens = $pdo->prepare("SELECT produto_id, SUM(quantidade) AS q FROM itens_pedido WHERE pedido_id = ? GROUP BY produto_id");
         $itens->execute([$pedido_id]);

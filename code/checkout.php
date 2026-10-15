@@ -108,6 +108,22 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
         .input-wrapper { position:relative; }
         .card-flag { width:40px; height:26px; object-fit:contain; position:absolute; right:14px; top:50%; transform:translateY(-50%); }
 
+        /* ── CUPOM ── */
+        .cupom-box { margin-top:22px; padding-top:20px; border-top:1px solid #eee; }
+        .cupom-box label { display:block; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#888; margin-bottom:8px; }
+        .cupom-row { display:flex; gap:8px; }
+        .cupom-row input { flex:1; min-width:0; padding:13px 14px; border:1px solid #ddd; border-radius:12px; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:1px; }
+        .cupom-row input:focus { outline:none; border-color:#000; }
+        .btn-cupom { padding:0 20px; border:none; border-radius:12px; background:#000; color:#fff; font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase; cursor:pointer; }
+        .btn-cupom:disabled { opacity:.5; cursor:wait; }
+        .cupom-msg { font-size:12px; font-weight:700; margin-top:8px; display:none; }
+        .cupom-msg.erro { color:#c62828; display:block; }
+        .cupom-aplicado { display:none; align-items:center; justify-content:space-between; gap:10px; background:#e8f5e9; color:#2e7d32; border-radius:12px; padding:11px 14px; font-size:12px; font-weight:800; }
+        .cupom-aplicado button { background:none; border:none; color:#2e7d32; font-size:11px; font-weight:800; text-decoration:underline; cursor:pointer; }
+        .linha-desconto { color:#2e7d32; font-weight:700; }
+        .dica-frete { background:#fff8e1; color:#b45309; padding:8px 12px; border-radius:8px; font-size:12px; font-weight:700; margin-bottom:10px; display:none; }
+        .resumo-erro { background:#fff0f0; color:#c62828; border-radius:10px; padding:10px 12px; font-size:12px; font-weight:700; margin-top:14px; display:none; }
+
         /* ── BADGE GATEWAY ── */
         .gateway-badge {
             display:inline-flex; align-items:center; gap:6px;
@@ -340,15 +356,35 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
             Sua Sacola
         </h3>
         <div id="listaCheckout"></div>
+        <div class="cupom-box">
+            <label for="campoCupom">Cupom de desconto</label>
+            <div class="cupom-row" id="cupomForm">
+                <input type="text" id="campoCupom" placeholder="Digite o código" maxlength="50" autocomplete="off"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();aplicarCupom();}">
+                <button type="button" class="btn-cupom" id="btnCupom" onclick="aplicarCupom()">Aplicar</button>
+            </div>
+            <div class="cupom-aplicado" id="cupomAplicadoBox">
+                <span>🏷️ <span id="cupomAplicadoCodigo"></span> aplicado</span>
+                <button type="button" onclick="removerCupom()">Remover</button>
+            </div>
+            <div class="cupom-msg" id="cupomMsg"></div>
+        </div>
+
         <div class="summary-totals">
             <div class="total-line">
                 <span style="color:#888;">Subtotal</span>
                 <span id="subtotalCheckout" style="font-weight:700;">R$ 0,00</span>
             </div>
+            <div class="total-line linha-desconto" id="linhaCupom" style="display:none;">
+                <span>Cupom <span id="linhaCupomCodigo"></span></span>
+                <span id="valorCupom"></span>
+            </div>
             <div class="total-line">
                 <span style="color:#888;">Frete</span>
-                <span style="color:#27ae60; font-weight:800; font-size:11px;">GRÁTIS</span>
+                <span id="valorFrete" style="font-weight:800;">—</span>
             </div>
+            <div id="prazoFrete" style="font-size:11px; color:#999; margin:-4px 0 10px;"></div>
+            <div class="dica-frete" id="dicaFrete"></div>
             <div class="desconto-pix" id="descontoPix">
                 🎉 Desconto PIX 5%: <span id="valorDesconto"></span>
             </div>
@@ -356,6 +392,7 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
                 <span>TOTAL</span>
                 <span id="totalCheckout">R$ 0,00</span>
             </div>
+            <div class="resumo-erro" id="resumoErro"></div>
         </div>
     </aside>
 </main>
@@ -395,11 +432,17 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── RESUMO ────────────────────────────────────────────────
+// Itens: exibição a partir do carrinho. VALORES (subtotal, cupom, frete, PIX, total):
+// sempre calculados no servidor (calcular_checkout.php) — o navegador não decide preço.
+let cupomAplicado = '';
+let totalFinal    = 0;
+let calcSeq       = 0;
+
+const fmtBRL = v => 'R$ ' + Number(v).toLocaleString('pt-br', {minimumFractionDigits:2, maximumFractionDigits:2});
+
 function renderizarResumo() {
-    totalBruto = 0;
     const lista = document.getElementById('listaCheckout');
     lista.innerHTML = carrinhoGlobal.map(item => {
-        totalBruto += parseFloat(item.preco) * (item.qtd || 1);
         return `<div class="item-checkout">
             <img src="${item.img||''}" alt="${item.nome}" onerror="this.style.opacity='0'">
             <div class="item-info">
@@ -411,23 +454,125 @@ function renderizarResumo() {
     atualizarTotal();
 }
 
-function atualizarTotal() {
-    const descPix = document.getElementById('descontoPix');
-    const valDesc = document.getElementById('valorDesconto');
-    let total = totalBruto;
+async function atualizarTotal() {
+    const seq = ++calcSeq;                       // ignora respostas antigas (troca rápida de método)
+    try {
+        const res = await fetch('calcular_checkout.php', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({
+                carrinho: carrinhoGlobal.map(i => ({ id: i.id, qtd: i.qtd || 1 })),
+                cupom:    cupomAplicado,
+                metodo:   metodoPagamento,
+            }),
+        });
+        const r = await res.json();
+        if (seq !== calcSeq) return;
+        renderizarTotais(r);
+    } catch (e) {
+        if (seq === calcSeq) mostrarErroResumo('Não foi possível atualizar os valores. Verifique sua conexão.');
+    }
+}
 
-    if (metodoPagamento === 'pix' && totalBruto > 0) {
-        const desc = totalBruto * 0.05;
-        total -= desc;
+function mostrarErroResumo(msg) {
+    const el = document.getElementById('resumoErro');
+    el.textContent = msg || '';
+    el.style.display = msg ? 'block' : 'none';
+}
+
+function renderizarTotais(r) {
+    const $ = id => document.getElementById(id);
+
+    if (!r.ok) {                                  // carrinho inválido / sem estoque
+        mostrarErroResumo(r.erro || 'Não foi possível calcular o pedido.');
+        $('subtotalCheckout').textContent = '—';
+        $('totalCheckout').textContent    = '—';
+        totalFinal = 0;
+        return;
+    }
+    mostrarErroResumo('');
+
+    // Cupom: o servidor decide se continua válido
+    const msg = $('cupomMsg');
+    if (r.cupom) {
+        $('cupomForm').style.display          = 'none';
+        $('cupomAplicadoBox').style.display   = 'flex';
+        $('cupomAplicadoCodigo').textContent  = r.cupom.codigo;
+        msg.className = 'cupom-msg'; msg.textContent = '';
+    } else {
+        if (cupomAplicado && r.cupom_erro) {
+            msg.textContent = r.cupom_erro; msg.className = 'cupom-msg erro';
+        } else if (!cupomAplicado) {
+            msg.className = 'cupom-msg'; msg.textContent = '';
+        }
+        cupomAplicado = '';
+        $('cupomForm').style.display          = 'flex';
+        $('cupomAplicadoBox').style.display   = 'none';
+    }
+
+    $('subtotalCheckout').textContent = fmtBRL(r.subtotal);
+
+    const linhaCupom = $('linhaCupom');
+    if (r.desconto_cupom > 0) {
+        linhaCupom.style.display = 'flex';
+        $('linhaCupomCodigo').textContent = r.cupom ? '(' + r.cupom.codigo + ')' : '';
+        $('valorCupom').textContent = '- ' + fmtBRL(r.desconto_cupom);
+    } else {
+        linhaCupom.style.display = 'none';
+    }
+
+    const frete = $('valorFrete');
+    if (r.frete > 0) {
+        frete.textContent = fmtBRL(r.frete); frete.style.color = '#000'; frete.style.fontSize = '14px';
+    } else {
+        frete.textContent = 'GRÁTIS'; frete.style.color = '#27ae60'; frete.style.fontSize = '11px';
+    }
+    $('prazoFrete').textContent = r.prazo_dias ? 'Entrega em até ' + r.prazo_dias + ' dias úteis' : '';
+
+    const dica = $('dicaFrete');
+    if (r.frete_falta > 0) {
+        dica.textContent = '🚚 Faltam ' + fmtBRL(r.frete_falta) + ' para ganhar frete grátis';
+        dica.style.display = 'block';
+    } else {
+        dica.style.display = 'none';
+    }
+
+    const descPix = $('descontoPix');
+    if (r.desconto_pix > 0) {
         descPix.style.display = 'block';
-        valDesc.textContent   = '- R$ ' + desc.toLocaleString('pt-br',{minimumFractionDigits:2});
+        $('valorDesconto').textContent = '- ' + fmtBRL(r.desconto_pix);
     } else {
         descPix.style.display = 'none';
     }
-    document.getElementById('subtotalCheckout').textContent =
-        'R$ ' + totalBruto.toLocaleString('pt-br',{minimumFractionDigits:2});
-    document.getElementById('totalCheckout').textContent =
-        'R$ ' + total.toLocaleString('pt-br',{minimumFractionDigits:2});
+
+    totalFinal = r.total;
+    $('totalCheckout').textContent = fmtBRL(r.total);
+    if (typeof carregarParcelas === 'function' && metodoPagamento === 'cartao') {
+        const n = (document.getElementById('cardNumber')?.value || '').replace(/\s/g, '');
+        if (n.length >= 6) carregarParcelas(n);
+    }
+}
+
+// ── CUPOM ─────────────────────────────────────────────────
+async function aplicarCupom() {
+    const campo = document.getElementById('campoCupom');
+    const btn   = document.getElementById('btnCupom');
+    const codigo = campo.value.trim().toUpperCase();
+    const msg = document.getElementById('cupomMsg');
+    if (!codigo) { msg.textContent = 'Digite o código do cupom.'; msg.className = 'cupom-msg erro'; return; }
+
+    cupomAplicado = codigo;
+    btn.disabled = true;
+    await atualizarTotal();                       // o servidor valida e devolve o resultado
+    btn.disabled = false;
+    if (!cupomAplicado) campo.focus(); else campo.value = '';
+}
+
+function removerCupom() {
+    cupomAplicado = '';
+    const msg = document.getElementById('cupomMsg');
+    msg.className = 'cupom-msg'; msg.textContent = '';
+    atualizarTotal();
 }
 
 // ── SELETOR DE MÉTODO ─────────────────────────────────────
@@ -525,7 +670,7 @@ async function detectarBandeira(numero) {
 async function carregarParcelas(numero) {
     if (!mp) return;
     try {
-        const res = await mp.getInstallments({ amount: String(totalBruto), bin: numero.substring(0,6) });
+        const res = await mp.getInstallments({ amount: String(totalFinal || 0), bin: numero.substring(0,6) });
         const sel = document.getElementById('selectParcelas');
         sel.innerHTML = '';
         (res[0]?.payer_costs || []).forEach(p => {
@@ -658,6 +803,7 @@ async function finalizarPedido() {
         estado:    document.getElementById('campo-estado').value.trim(),
         carrinho:  carrinhoGlobal,
         parcelas:  parseInt(document.getElementById('selectParcelas')?.value || '1'),
+        cupom:     cupomAplicado,
     };
 
     // Gera tokens do cartão nos dois gateways simultaneamente

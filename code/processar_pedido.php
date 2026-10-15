@@ -18,6 +18,8 @@ ini_set('display_errors', '0');
 error_reporting(E_ALL);
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'loja_helpers.php';
+require_once 'pedido_helpers.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -59,6 +61,7 @@ $token_mp  = (string)($dados['token_mp'] ?? '');
 $token_ps  = (string)($dados['token_ps'] ?? '');
 $issuer_id = (string)($dados['issuer_id'] ?? '');
 $pm_id     = (string)($dados['payment_method_id'] ?? '');
+$cupom_codigo = strtoupper(trim((string)($dados['cupom'] ?? '')));
 
 if (strlen($cpf) !== 11)  responder(['sucesso' => false, 'erro' => 'CPF inválido.'], 422);
 if (strlen($cep) !== 8 || $rua === '' || $numero === '' || $cidade === '') {
@@ -107,6 +110,8 @@ if (!$mp_ok && !$ps_ok) {
 $itens_validados = [];   // [{id, nome, preco, qtd, variacoes}]
 $subtotal        = 0.0;
 
+loja_garantir_schema($pdo);
+
 try {
     $pdo->beginTransaction();
 
@@ -145,10 +150,26 @@ try {
         ];
     }
     $subtotal = round($subtotal, 2);
-    $desconto = ($metodo === 'pix') ? round($subtotal * 0.05, 2) : 0.0;
-    $total    = round($subtotal - $desconto, 2);
 
-    if ($total <= 0) throw new RuntimeException('Total do pedido inválido.');
+    // Cupom: valida e reserva 1 uso (atômico). Se algo falhar abaixo, o rollback devolve o uso.
+    $cupom_val = null;
+    if ($cupom_codigo !== '') {
+        $cupom_val = cupom_validar($pdo, $cupom_codigo, $subtotal);
+        if (!$cupom_val['ok']) throw new RuntimeException($cupom_val['erro']);
+        if (!cupom_consumir($pdo, (int)$cupom_val['cupom']['id'])) {
+            throw new RuntimeException('Este cupom atingiu o limite de usos.');
+        }
+    }
+
+    // Mesma função que gerou o resumo exibido ao cliente
+    $t = loja_calcular_totais($pdo, $subtotal, $metodo, $cupom_val);
+    if ($t['erro'] !== '' || $t['total'] <= 0) throw new RuntimeException($t['erro'] ?: 'Total do pedido inválido.');
+
+    $desconto       = $t['desconto_total'];   // cupom + PIX (relatórios somam esta coluna)
+    $desconto_cupom = $t['desconto_cupom'];
+    $frete          = $t['frete'];
+    $total          = $t['total'];
+    $cupom_gravar   = $cupom_val ? $cupom_val['cupom']['codigo'] : null;
 
     // Atualiza cadastro do cliente
     $pdo->prepare("UPDATE usuarios SET cpf = ?, telefone = ? WHERE id = ?")
@@ -167,12 +188,12 @@ try {
 
     $pdo->prepare("
         INSERT INTO pedidos
-            (usuario_id, status, total, subtotal, desconto, forma_pagamento,
+            (usuario_id, status, total, subtotal, desconto, desconto_cupom, frete, cupom_codigo, forma_pagamento,
              end_cep, end_rua, end_numero, end_bairro, end_cidade, end_estado,
              status_pagamento, data_pedido)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'pendente',NOW())
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pendente',NOW())
     ")->execute([
-        $usuario_id, 'pendente', $total, $subtotal, $desconto, $metodo,
+        $usuario_id, 'pendente', $total, $subtotal, $desconto, $desconto_cupom, $frete, $cupom_gravar, $metodo,
         $cep, $rua, $numero, $bairro, $cidade, $estado,
     ]);
     $pedido_id = (int)$pdo->lastInsertId();
@@ -267,23 +288,9 @@ if (!$resultado && !$erro_recusa && $ps_ok && ($metodo !== 'cartao' || $token_ps
     }
 }
 
-// ── FALHA: cancela pedido e devolve estoque ──────────────
+// ── FALHA: cancela pedido, devolve estoque e libera o cupom ──
 if (!$resultado) {
-    try {
-        $pdo->beginTransaction();
-        $pdo->prepare("UPDATE pedidos SET status='cancelado', status_pagamento='recusado', observacoes=? WHERE id=?")
-            ->execute(['falha_pagamento: ' . mb_substr((string)($erro_recusa ?? $ultimo_erro), 0, 200), $pedido_id]);
-        $stmtVolta = $pdo->prepare("UPDATE produtos SET estoque = estoque + ? WHERE id = ?");
-        $stmtMov   = $pdo->prepare("INSERT INTO estoque_movimentacoes (produto_id, tipo, quantidade, motivo, usuario_id) VALUES (?,?,?,?,?)");
-        foreach ($qtd_por_produto as $pid => $q) {
-            $stmtVolta->execute([$q, $pid]);
-            $stmtMov->execute([$pid, 'entrada', $q, "estorno_pedido_$pedido_id", $usuario_id]);
-        }
-        $pdo->commit();
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        error_log("[PEDIDO ROLLBACK ERROR] pedido=$pedido_id: " . $e->getMessage());
-    }
+    pedido_cancelar_devolvendo_estoque($pdo, $pedido_id, 'falha_pagamento: ' . mb_substr((string)($erro_recusa ?? $ultimo_erro), 0, 200));
     $msg_erro = $erro_recusa ?: 'Não foi possível processar o pagamento agora. Tente novamente ou use outra forma de pagamento.';
     // Em sandbox, mostra o motivo técnico para facilitar o diagnóstico
     $em_sandbox = (defined('PS_SANDBOX') && PS_SANDBOX) || (defined('MP_SANDBOX') && MP_SANDBOX);

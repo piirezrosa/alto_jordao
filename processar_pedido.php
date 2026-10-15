@@ -281,10 +281,11 @@ if (!$resultado) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         error_log("[PEDIDO ROLLBACK ERROR] pedido=$pedido_id: " . $e->getMessage());
     }
-    responder([
-        'sucesso' => false,
-        'erro'    => $erro_recusa ?: 'Não foi possível processar o pagamento agora. Tente novamente ou use outra forma de pagamento.',
-    ], 402);
+    $msg_erro = $erro_recusa ?: 'Não foi possível processar o pagamento agora. Tente novamente ou use outra forma de pagamento.';
+    // Em sandbox, mostra o motivo técnico para facilitar o diagnóstico
+    $em_sandbox = (defined('PS_SANDBOX') && PS_SANDBOX) || (defined('MP_SANDBOX') && MP_SANDBOX);
+    if ($em_sandbox && !$erro_recusa && $ultimo_erro) { $msg_erro .= ' [sandbox: ' . $ultimo_erro . ']'; }
+    responder(['sucesso' => false, 'erro' => $msg_erro], 402);
 }
 
 // ── SUCESSO: registra referência do pagamento ────────────

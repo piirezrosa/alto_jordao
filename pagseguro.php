@@ -39,10 +39,21 @@ class PagSeguro {
         $data = json_decode($response, true);
 
         if ($httpCode >= 400) {
-            $msg = $data['error_messages'][0]['description'] ?? $data['message'] ?? 'Erro desconhecido PagSeguro';
+            $partes = [];
+            foreach (($data['error_messages'] ?? []) as $em) {
+                $partes[] = trim(($em['parameter_name'] ?? '') . ': ' . ($em['description'] ?? ($em['code'] ?? '')), ': ');
+            }
+            $msg = $partes ? implode(' | ', $partes) : ($data['message'] ?? 'Erro desconhecido PagSeguro');
+            $msg = "HTTP $httpCode - " . $msg;
             return ['error' => true, 'message' => $msg, 'http_code' => $httpCode, 'raw' => $data];
         }
         return $data ?? [];
+    }
+
+    /** PagSeguro só aceita URLs HTTPS públicas; em localhost/HTTP omitimos (o polling cobre o PIX). */
+    private static function urlsNotificacao(): array {
+        $url = SITE_URL . '/webhook_ps.php';
+        return (str_starts_with($url, 'https://') && !preg_match('#//(localhost|127\.|192\.168\.)#', $url)) ? [$url] : [];
     }
 
     private static function montarCustomer(array $usuario, array $end = []): array {
@@ -95,7 +106,7 @@ class PagSeguro {
                 'amount'          => ['value' => $total_centavos],
                 'expiration_date' => date('Y-m-d\TH:i:s-03:00', strtotime('+30 minutes')),
             ]],
-            'notification_urls'   => [SITE_URL . '/webhook_ps.php'],
+            'notification_urls'   => self::urlsNotificacao(),
         ];
 
         $res = self::request('POST', '/orders', $body);
@@ -166,7 +177,7 @@ class PagSeguro {
                     ],
                 ],
             ]],
-            'notification_urls' => [SITE_URL . '/webhook_ps.php'],
+            'notification_urls' => self::urlsNotificacao(),
         ];
 
         $res = self::request('POST', '/orders', $body);
@@ -237,7 +248,7 @@ class PagSeguro {
                     ],
                 ],
             ]],
-            'notification_urls' => [SITE_URL . '/webhook_ps.php'],
+            'notification_urls' => self::urlsNotificacao(),
         ];
 
         $res = self::request('POST', '/orders', $body);

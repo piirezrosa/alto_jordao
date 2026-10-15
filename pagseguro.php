@@ -252,7 +252,6 @@ class PagSeguro {
                     'capture'      => true,
                     'card'         => [
                         'encrypted'        => $token_cartao, // token gerado pelo SDK JS do PS
-                        'security_code'    => null,
                         'store'            => false,
                         'holder'           => [
                             'name'   => $usuario['nome'],

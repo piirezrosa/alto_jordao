@@ -539,7 +539,7 @@ async function carregarParcelas(numero) {
 
 // ── TOKENIZAÇÃO DUPLA (MP + PS) ───────────────────────────
 async function gerarTokens() {
-    const tokens = { mp: null, ps: null };
+    const tokens = { mp: null, ps: null, erros: [] };
 
     const numero  = document.getElementById('cardNumber').value.replace(/\s/g,'');
     const nome    = document.getElementById('cardholderName').value;
@@ -563,24 +563,36 @@ async function gerarTokens() {
             });
             tokens.mp = t.id;
         } catch(e) {
-            console.warn('Falha ao gerar token MP:', e.message);
+            console.warn('Falha ao gerar token MP:', e);
+            tokens.erros.push('Mercado Pago: ' + (e.message || (Array.isArray(e) ? e.map(x => x.message || x.code).join(', ') : e)));
         }
     }
 
     // Token do PagSeguro
-    if (typeof PagSeguro !== 'undefined') {
+    if (typeof PagSeguro === 'undefined') {
+        if (CFG.ps_ok) tokens.erros.push('SDK do PagSeguro não carregou (bloqueado pelo navegador/Brave Shields?)');
+    } else if (!CFG.ps_public_key) {
+        tokens.erros.push('PagSeguro: chave pública não configurada');
+    } else {
         try {
-            const encrypted = PagSeguro.encryptCard({
-                publicKey:      CFG.ps_public_key || '',
+            const r = PagSeguro.encryptCard({
+                publicKey:      CFG.ps_public_key,
                 holder:         nome,
                 number:         numero,
                 expMonth:       mes,
                 expYear:        ano,
                 securityCode:   cvv,
             });
-            tokens.ps = encrypted;
+            if (r && r.hasErrors) {
+                const det = (r.errors || []).map(e => e.message || e.code).join(', ');
+                tokens.erros.push('PagSeguro: ' + (det || 'dados do cartão inválidos'));
+            } else {
+                tokens.ps = r.encryptedCard || null;
+                if (!tokens.ps) tokens.erros.push('PagSeguro: cartão não foi criptografado');
+            }
         } catch(e) {
-            console.warn('Falha ao gerar token PS:', e.message);
+            console.warn('Falha ao gerar token PS:', e);
+            tokens.erros.push('PagSeguro: ' + (e.message || e));
         }
     }
 
@@ -656,7 +668,8 @@ async function finalizarPedido() {
 
             // Pelo menos um token precisa ter sido gerado
             if (!tokens.mp && !tokens.ps) {
-                throw new Error('Não foi possível validar os dados do cartão. Verifique e tente novamente.');
+                const det = tokens.erros.length ? ' (' + tokens.erros.join(' | ') + ')' : '';
+                throw new Error('Não foi possível validar os dados do cartão. Verifique e tente novamente.' + det);
             }
 
             payload.token_mp             = tokens.mp;

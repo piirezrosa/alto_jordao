@@ -286,7 +286,7 @@ $pagina_atual = 'financeiro';
         <div class="card-header">
             <span class="card-title">Receita Bruta (R$)</span>
         </div>
-        <canvas id="graficoVendas" height="80"></canvas>
+        <canvas id="chartReceita" height="110"></canvas>
     </div>
 
     <!-- TABS + TABELAS -->
@@ -360,7 +360,7 @@ function switchTab(type, btn) {
     btn.classList.add('active');
 }
 
-const ctx = document.getElementById('graficoVendas').getContext('2d');
+const ctx = document.getElementById('chartReceita').getContext('2d');
 new Chart(ctx, {
     type: 'line',
     data: {

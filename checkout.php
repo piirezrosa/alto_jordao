@@ -45,7 +45,7 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
 
     <?php if ($ps_ok): ?>
     <!-- SDK PagSeguro (tokenização de cartão) -->
-    <script src="https://assets.pagseguro.com.br/checkout-sdk/js/pagseguro.min.js"></script>
+    <script src="https://assets.pagseguro.com.br/checkout-sdk-js/rc/dist/browser/pagseguro.min.js"></script>
     <?php endif; ?>
 
     <style>

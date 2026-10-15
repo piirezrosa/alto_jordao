@@ -16,7 +16,7 @@ class PagSeguro {
             CURLOPT_HTTPHEADER => [
                 'Authorization: Bearer ' . PS_TOKEN,
                 'Content-Type: application/json',
-                'x-idempotency-key: ' . uniqid('altojordao_ps_', true),
+                'x-idempotency-key: altojordao_ps_' . bin2hex(random_bytes(12)),
             ],
         ]);
 

@@ -24,7 +24,7 @@ class MercadoPago {
             CURLOPT_HTTPHEADER => [
                 'Authorization: Bearer ' . MP_ACCESS_TOKEN,
                 'Content-Type: application/json',
-                'X-Idempotency-Key: ' . uniqid('altojordao_', true) // Garante que a requisição seja idempotente
+                'X-Idempotency-Key: altojordao_' . bin2hex(random_bytes(12)) // Garante que a requisição seja idempotente
             ],
         ]);
 

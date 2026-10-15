@@ -130,7 +130,7 @@ class PagSeguro {
         return [
             'order_id'   => $res['id'],
             'payment_id' => $res['id'],
-            'status'     => $res['status'],
+            'status'     => $res['status'] ?? 'WAITING',
             'qr_code'    => $qr['text']       ?? null, // código copia-e-cola
             'qr_img_url' => $qr_img_url,               // URL da imagem PNG do QR
             'expiracao'  => date('H:i', strtotime('+30 minutes')),

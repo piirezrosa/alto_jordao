@@ -13,6 +13,9 @@
  *  - se o pagamento falhar, o pedido é cancelado e o estoque devolvido
  *  - gateway principal: Mercado Pago; fallback automático: PagSeguro
  */
+// Endpoint JSON: warnings/notices nunca podem vazar para o corpo da resposta
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
 

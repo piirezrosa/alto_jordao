@@ -56,6 +56,17 @@ class PagSeguro {
         return (str_starts_with($url, 'https://') && !preg_match('#//(localhost|127\.|192\.168\.)#', $url)) ? [$url] : [];
     }
 
+    /** Nome do estado a partir da UF (o PagSeguro exige `region` por extenso no boleto). */
+    private static function nomeEstado(string $uf): string {
+        $m = ['AC'=>'Acre','AL'=>'Alagoas','AP'=>'Amapá','AM'=>'Amazonas','BA'=>'Bahia','CE'=>'Ceará',
+              'DF'=>'Distrito Federal','ES'=>'Espírito Santo','GO'=>'Goiás','MA'=>'Maranhão','MT'=>'Mato Grosso',
+              'MS'=>'Mato Grosso do Sul','MG'=>'Minas Gerais','PA'=>'Pará','PB'=>'Paraíba','PR'=>'Paraná',
+              'PE'=>'Pernambuco','PI'=>'Piauí','RJ'=>'Rio de Janeiro','RN'=>'Rio Grande do Norte',
+              'RS'=>'Rio Grande do Sul','RO'=>'Rondônia','RR'=>'Roraima','SC'=>'Santa Catarina',
+              'SP'=>'São Paulo','SE'=>'Sergipe','TO'=>'Tocantins'];
+        return $m[strtoupper($uf)] ?? $uf;
+    }
+
     private static function montarCustomer(array $usuario, array $end = []): array {
         $nomes = explode(' ', $usuario['nome'], 2);
         $customer  = [
@@ -76,6 +87,7 @@ class PagSeguro {
                 'number'      => $end['numero']  ?? 'S/N',
                 'locality'    => $end['bairro']  ?? '',
                 'city'        => $end['cidade']  ?? '',
+                'region'      => self::nomeEstado($end['estado'] ?? 'SP'),
                 'region_code' => $end['estado']  ?? 'SP',
                 'country'     => 'BRA',
                 'postal_code' => preg_replace('/\D/', '', $end['cep'] ?? ''),
@@ -169,6 +181,7 @@ class PagSeguro {
                                 'number'      => $end['numero'] ?? 'S/N',
                                 'locality'    => $end['bairro'] ?? '',
                                 'city'        => $end['cidade'] ?? '',
+                                'region'      => self::nomeEstado($end['estado'] ?? 'SP'),
                                 'region_code' => $end['estado'] ?? 'SP',
                                 'country'     => 'BRA',
                                 'postal_code' => preg_replace('/\D/', '', $end['cep'] ?? ''),

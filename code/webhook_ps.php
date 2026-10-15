@@ -78,6 +78,9 @@ if ($r['pago']) {
     }
     if (pedido_marcar_pago($pdo, $pedido_id, 'webhook_ps_paid')) {
         pedido_log($pdo, $pedido_id, 'pagamento_aprovado', "ordem: $ordem_id | gateway: ps$sufixo");
+    } elseif ($pedido['status'] === 'cancelado') {
+        pedido_log($pdo, $pedido_id, 'ALERTA_pagamento_aprovado_pedido_cancelado',
+            "ordem: $ordem_id | valor: {$r['valor_pago']} centavos | REEMBOLSAR OU REATIVAR MANUALMENTE");
     } else {
         pedido_log($pdo, $pedido_id, 'webhook_ps_ignorado_status_final', "status atual: {$pedido['status']}");
     }

@@ -58,6 +58,19 @@ function pedido_cancelar_devolvendo_estoque(PDO $pdo, int $pedido_id, string $mo
     }
 }
 
+/** Marca como estornado um pedido já pago/entregue (estorno ou chargeback). */
+function pedido_marcar_estornado(PDO $pdo, int $pedido_id, string $nota = ''): bool
+{
+    $st = $pdo->prepare("
+        UPDATE pedidos
+           SET status_pagamento = 'estornado',
+               observacoes = CONCAT(COALESCE(observacoes, ''), ?)
+         WHERE id = ? AND status IN ('pago', 'entregue') AND status_pagamento <> 'estornado'
+    ");
+    $st->execute([$nota !== '' ? " | $nota" : '', $pedido_id]);
+    return $st->rowCount() === 1;
+}
+
 /** Registro em logs_sistema sem nunca quebrar o fluxo. */
 function pedido_log(PDO $pdo, ?int $pedido_id, string $acao, string $detalhes): void
 {

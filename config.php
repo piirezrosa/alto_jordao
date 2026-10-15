@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('America/Sao_Paulo'); // horários de expiração PIX/boleto e logs
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }

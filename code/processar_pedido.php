@@ -19,6 +19,7 @@ error_reporting(E_ALL);
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
 require_once 'loja_helpers.php';
+require_once 'financeiro_helpers.php';
 require_once 'pedido_helpers.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -110,12 +111,12 @@ if (!$mp_ok && !$ps_ok) {
 $itens_validados = [];   // [{id, nome, preco, qtd, variacoes}]
 $subtotal        = 0.0;
 
-loja_garantir_schema($pdo);
+fin_garantir_schema($pdo);   // inclui as colunas do checkout (frete/cupom) e do financeiro
 
 try {
     $pdo->beginTransaction();
 
-    $stmtProd = $pdo->prepare("SELECT id, nome, preco, estoque FROM produtos WHERE id = ? AND ativo = 1 FOR UPDATE");
+    $stmtProd = $pdo->prepare("SELECT id, nome, preco, custo, estoque FROM produtos WHERE id = ? AND ativo = 1 FOR UPDATE");
 
     // Ordena por id para evitar deadlock entre pedidos concorrentes
     uasort($linhas, fn($a, $b) => $a['id'] <=> $b['id']);
@@ -146,6 +147,7 @@ try {
         $subtotal += $preco * $l['qtd'];
         $itens_validados[] = [
             'id' => $l['id'], 'nome' => $p['nome'], 'preco' => $preco,
+            'custo' => ($p['custo'] !== null && $p['custo'] !== '') ? round((float)$p['custo'], 2) : null,
             'qtd' => $l['qtd'], 'variacoes' => $l['variacoes'],
         ];
     }
@@ -198,12 +200,14 @@ try {
     ]);
     $pedido_id = (int)$pdo->lastInsertId();
 
-    $stmtItem = $pdo->prepare("
-        INSERT INTO itens_pedido (pedido_id, produto_id, quantidade, preco_unitario, variacoes)
-        VALUES (?, ?, ?, ?, ?)
-    ");
+    $tem_custo_col = in_array('custo_unitario', fin_colunas($pdo, 'itens_pedido'), true);
+    $stmtItem = $pdo->prepare($tem_custo_col
+        ? "INSERT INTO itens_pedido (pedido_id, produto_id, quantidade, preco_unitario, variacoes, custo_unitario) VALUES (?, ?, ?, ?, ?, ?)"
+        : "INSERT INTO itens_pedido (pedido_id, produto_id, quantidade, preco_unitario, variacoes) VALUES (?, ?, ?, ?, ?)");
     foreach ($itens_validados as $it) {
-        $stmtItem->execute([$pedido_id, $it['id'], $it['qtd'], $it['preco'], $it['variacoes']]);
+        $args = [$pedido_id, $it['id'], $it['qtd'], $it['preco'], $it['variacoes']];
+        if ($tem_custo_col) $args[] = $it['custo'];
+        $stmtItem->execute($args);
     }
 
     // Baixa de estoque + movimentação
@@ -305,6 +309,14 @@ if ($aprovado) {
         ->execute([$ref, $pedido_id]);
 } else {
     $pdo->prepare("UPDATE pedidos SET observacoes=? WHERE id=?")->execute([$ref, $pedido_id]);
+}
+
+// Custos variáveis gravados no pedido (o histórico não muda se as taxas forem alteradas depois)
+try {
+    $pdo->prepare("UPDATE pedidos SET gateway = ?, taxa_gateway = ?, imposto_valor = ? WHERE id = ?")
+        ->execute([$gateway, fin_taxa_gateway($pdo, $gateway, $metodo, $total), fin_imposto($pdo, $total), $pedido_id]);
+} catch (Throwable $e) {
+    error_log("[FIN SNAPSHOT] pedido=$pedido_id: " . $e->getMessage());
 }
 
 $pdo->prepare("INSERT INTO logs_sistema (usuario_id, acao, tabela, registro_id, detalhes, ip) VALUES (?,?,?,?,?,?)")

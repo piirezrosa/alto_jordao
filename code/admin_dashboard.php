@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'financeiro_helpers.php';
 
 // Descomente quando for para produção:
  if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
@@ -13,9 +14,9 @@ $ano_ini = date('Y-01-01');
 
 function q($pdo, $sql, $p = []) { $s = $pdo->prepare($sql); $s->execute($p); return $s; }
 
-$v_hoje          = q($pdo,"SELECT COALESCE(SUM(total),0) FROM pedidos WHERE status IN('pago','enviado','entregue') AND DATE(data_pedido)=?",[$hoje])->fetchColumn();
-$v_mes           = q($pdo,"SELECT COALESCE(SUM(total),0) FROM pedidos WHERE status IN('pago','enviado','entregue') AND data_pedido>=?",[$mes_ini])->fetchColumn();
-$v_ano           = q($pdo,"SELECT COALESCE(SUM(total),0) FROM pedidos WHERE status IN('pago','enviado','entregue') AND data_pedido>=?",[$ano_ini])->fetchColumn();
+$v_hoje          = q($pdo,"SELECT COALESCE(SUM(total),0) FROM pedidos WHERE status IN('pago','em_separacao','enviado','entregue') AND DATE(data_pedido)=?",[$hoje])->fetchColumn();
+$v_mes           = q($pdo,"SELECT COALESCE(SUM(total),0) FROM pedidos WHERE status IN('pago','em_separacao','enviado','entregue') AND data_pedido>=?",[$mes_ini])->fetchColumn();
+$v_ano           = q($pdo,"SELECT COALESCE(SUM(total),0) FROM pedidos WHERE status IN('pago','em_separacao','enviado','entregue') AND data_pedido>=?",[$ano_ini])->fetchColumn();
 $p_pendente      = q($pdo,"SELECT COUNT(*) FROM pedidos WHERE status='pendente'")->fetchColumn();
 $p_enviado       = q($pdo,"SELECT COUNT(*) FROM pedidos WHERE status='enviado'")->fetchColumn();
 $p_cancelado     = q($pdo,"SELECT COUNT(*) FROM pedidos WHERE status='cancelado'")->fetchColumn();
@@ -25,17 +26,20 @@ $total_produtos  = q($pdo,"SELECT COUNT(*) FROM produtos WHERE ativo=1")->fetchC
 $estoque_critico = q($pdo,"SELECT COUNT(*) FROM produtos WHERE estoque<=3 AND ativo=1")->fetchColumn();
 $devolucoes_pend = q($pdo,"SELECT COUNT(*) FROM devolucoes WHERE status='pendente'")->fetchColumn();
 
-$lucro_mes = q($pdo,"
-    SELECT COALESCE(SUM((ip.preco_unitario - COALESCE(ip.custo_unitario, pr.custo, 0)) * ip.quantidade), 0)
-    FROM itens_pedido ip
-    JOIN pedidos ped ON ip.pedido_id = ped.id
-    JOIN produtos pr  ON ip.produto_id = pr.id
-    WHERE ped.status IN('pago','enviado','entregue') AND ped.data_pedido >= ?
-", [$mes_ini])->fetchColumn();
+// Lucro líquido realista do mês (taxas, impostos, frete, embalagem e despesas fixas)
+$dre_mes = null;
+try {
+    fin_garantir_schema($pdo);
+    $dre_mes = fin_resumo($pdo, date('Y-m-01', strtotime($mes_ini)), date('Y-m-d'));
+    $lucro_mes = $dre_mes['lucro_liquido'];
+} catch (Throwable $e) {
+    error_log('[DASHBOARD DRE] ' . $e->getMessage());
+    $lucro_mes = 0;
+}
 
 $grafico = q($pdo,"
     SELECT DATE(data_pedido) as dia, SUM(total) as total
-    FROM pedidos WHERE status IN('pago','enviado','entregue')
+    FROM pedidos WHERE status IN('pago','em_separacao','enviado','entregue')
     AND data_pedido >= DATE_SUB(NOW(), INTERVAL 30 DAY)
     GROUP BY DATE(data_pedido) ORDER BY dia ASC
 ")->fetchAll(PDO::FETCH_ASSOC);
@@ -45,7 +49,7 @@ $top_produtos = q($pdo,"
     FROM itens_pedido i
     JOIN produtos p   ON i.produto_id = p.id
     JOIN pedidos ped  ON i.pedido_id  = ped.id
-    WHERE ped.status IN('pago','enviado','entregue')
+    WHERE ped.status IN('pago','em_separacao','enviado','entregue')
     GROUP BY i.produto_id ORDER BY vendidos DESC LIMIT 5
 ")->fetchAll(PDO::FETCH_ASSOC);
 
@@ -57,7 +61,7 @@ $pedidos_recentes = q($pdo,"
 
 $dist_pgto = q($pdo,"
     SELECT forma_pagamento, COUNT(*) as total
-    FROM pedidos WHERE status IN('pago','enviado','entregue') AND data_pedido >= ?
+    FROM pedidos WHERE status IN('pago','em_separacao','enviado','entregue') AND data_pedido >= ?
     GROUP BY forma_pagamento
 ", [$mes_ini])->fetchAll(PDO::FETCH_ASSOC);
 
@@ -119,9 +123,9 @@ $pagina_atual = 'dashboard';
         </div>
         <div class="kpi-card">
             <div class="kpi-icon">💡</div>
-            <div class="kpi-label">Lucro Estimado (Mês)</div>
-            <div class="kpi-value" style="color: var(--success);">R$ <?= number_format($lucro_mes, 2, ',', '.') ?></div>
-            <div class="kpi-sub">Baseado no custo dos produtos</div>
+            <div class="kpi-label">Lucro Líquido (Mês)</div>
+            <div class="kpi-value" style="color: <?= $lucro_mes >= 0 ? 'var(--success)' : 'var(--danger)' ?>;">R$ <?= number_format($lucro_mes, 2, ',', '.') ?></div>
+            <div class="kpi-sub"><a href="admin_relatorios.php?aba=dre&periodo=30">Após custos, taxas, impostos e despesas fixas</a></div>
         </div>
     </div>
 
@@ -177,9 +181,15 @@ $pagina_atual = 'dashboard';
                 <span class="fin-value">R$ <?= number_format($v_mes, 2, ',', '.') ?></span>
             </div>
             <div class="fin-item">
-                <span class="fin-label">Lucro Estimado (mês)</span>
-                <span class="fin-value" style="color: var(--success);">R$ <?= number_format($lucro_mes, 2, ',', '.') ?></span>
+                <span class="fin-label">Lucro Líquido (mês)</span>
+                <span class="fin-value" style="color: <?= $lucro_mes >= 0 ? 'var(--success)' : 'var(--danger)' ?>;">R$ <?= number_format($lucro_mes, 2, ',', '.') ?></span>
             </div>
+            <?php if ($dre_mes && $dre_mes['ponto_equilibrio'] !== null): ?>
+            <div class="fin-item">
+                <span class="fin-label">Ponto de equilíbrio (mês)</span>
+                <span class="fin-value">R$ <?= number_format($dre_mes['ponto_equilibrio'], 2, ',', '.') ?></span>
+            </div>
+            <?php endif; ?>
             <div class="fin-item">
                 <span class="fin-label">Total de Clientes</span>
                 <span class="fin-value"><?= $total_clientes ?></span>

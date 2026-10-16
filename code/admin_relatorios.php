@@ -376,7 +376,7 @@ $pagina_atual = 'relatorios';
             ['(−) Frete pago às transportadoras',                 $dre['frete_custo'], -1, false],
             ['(−) Embalagem',                                     $dre['embalagem'], -1, false],
             ['(=) Margem de contribuição',                        $dre['margem_contribuicao'], 0, true],
-            ['(−) Despesas fixas (rateadas no período)',          $dre['despesas_fixas'], -1, false],
+            ['(−) Despesas fixas (rastreadas no período)',          $dre['despesas_fixas'], -1, false],
             ['(=) Lucro líquido',                                 $dre['lucro_liquido'], 0, true],
         ];
     ?>

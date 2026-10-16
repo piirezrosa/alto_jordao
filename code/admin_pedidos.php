@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'financeiro_helpers.php';
 
 // teste git
 
@@ -8,10 +9,17 @@ if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], 
     header("Location: login.php"); exit();
 }
 
+fin_garantir_schema($pdo);   // garante a coluna frete_custo
+
 // ── ATUALIZAR STATUS ──────────────────────────
 if (isset($_POST['atualizar_status'])) {
-    $stmt = $pdo->prepare("UPDATE pedidos SET status = ?, codigo_rastreio = ?, transportadora = ? WHERE id = ?");
-    $stmt->execute([$_POST['status'], $_POST['codigo_rastreio'] ?? null, $_POST['transportadora'] ?? null, $_POST['pedido_id']]);
+    // Custo real do frete pago à transportadora (vazio = ainda não informado → o relatório usa a estimativa)
+    $frete_custo = trim(str_replace(',', '.', (string)($_POST['frete_custo'] ?? '')));
+    $frete_custo = ($frete_custo !== '' && is_numeric($frete_custo) && (float)$frete_custo >= 0 && (float)$frete_custo <= 100000)
+        ? round((float)$frete_custo, 2) : null;
+
+    $stmt = $pdo->prepare("UPDATE pedidos SET status = ?, codigo_rastreio = ?, transportadora = ?, frete_custo = ? WHERE id = ?");
+    $stmt->execute([$_POST['status'], $_POST['codigo_rastreio'] ?? null, $_POST['transportadora'] ?? null, $frete_custo, $_POST['pedido_id']]);
     $log = $pdo->prepare("INSERT INTO logs_sistema (usuario_id, acao, tabela, registro_id, detalhes, ip) VALUES (?,?,?,?,?,?)");
     $log->execute([$_SESSION['usuario_id'] ?? null, 'pedido_status_atualizado', 'pedidos', $_POST['pedido_id'], 'Novo status: '.$_POST['status'], $_SERVER['REMOTE_ADDR']]);
     header("Location: admin_pedidos.php?msg=atualizado"); exit();
@@ -548,7 +556,31 @@ $pagina_atual = 'pedidos';
                 </div>
                 <div class="form-group-modal">
                     <label>Transportadora</label>
-                    <input type="text" name="transportadora" value="<?= htmlspecialchars($pedido_det['transportadora'] ?? '') ?>" placeholder="Ex: Correios, Jadlog">
+                    <?php $transp_atual = trim($pedido_det['transportadora'] ?? '');
+                          $transp_opcoes = ['Correios', 'Jadlog', 'Outra']; ?>
+                    <select name="transportadora">
+                        <option value="">— Selecione —</option>
+                        <?php foreach($transp_opcoes as $t): ?>
+                        <option value="<?= $t ?>" <?= strcasecmp($transp_atual, $t) === 0 ? 'selected' : '' ?>><?= $t ?></option>
+                        <?php endforeach; ?>
+                        <?php if ($transp_atual !== '' && !in_array(ucfirst(strtolower($transp_atual)), $transp_opcoes, true)): ?>
+                        <option value="<?= htmlspecialchars($transp_atual) ?>" selected><?= htmlspecialchars($transp_atual) ?></option>
+                        <?php endif; ?>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row-2" style="margin-top:14px;">
+                <div class="form-group-modal">
+                    <label>Custo real do frete (R$)</label>
+                    <input type="number" step="0.01" min="0" name="frete_custo"
+                           value="<?= isset($pedido_det['frete_custo']) && $pedido_det['frete_custo'] !== null ? htmlspecialchars($pedido_det['frete_custo']) : '' ?>"
+                           placeholder="Valor pago à transportadora">
+                    <small style="color:var(--muted); font-size:11px;">Vazio = o relatório usa a estimativa das configurações.</small>
+                </div>
+                <div class="form-group-modal">
+                    <label>Frete cobrado do cliente</label>
+                    <input type="text" value="R$ <?= number_format((float)($pedido_det['frete'] ?? 0), 2, ',', '.') ?>" disabled>
                 </div>
             </div>
 

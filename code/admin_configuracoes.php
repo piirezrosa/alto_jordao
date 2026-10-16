@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'financeiro_helpers.php';
 
 // Apenas superadmin acessa configurações do sistema
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin'])) {
@@ -12,6 +13,19 @@ $msg = '';
 // ── SALVAR CONFIGURAÇÕES ──────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['secao'])) {
     $secao = $_POST['secao'];
+
+    // Só seções conhecidas (a seção vai para a chave salva e para o redirecionamento)
+    $secoes_validas = ['geral','loja','emails','pagamento','frete','seguranca','sistema','financeiro'];
+    if (!in_array($secao, $secoes_validas, true)) { header("Location: admin_configuracoes.php"); exit(); }
+
+    // Financeiro (impostos, taxas, custos): SOMENTE superadmin — validado no servidor
+    if ($secao === 'financeiro') {
+        if (($_SESSION['usuario_nivel'] ?? '') !== 'superadmin') { http_response_code(403); exit('Acesso restrito ao superadmin.'); }
+        if (!fin_csrf_ok($_POST['csrf'] ?? null)) { header("Location: admin_configuracoes.php?secao=financeiro&msg=csrf"); exit(); }
+        $erro_fin = fin_salvar_configuracoes($pdo, $_POST);
+        header("Location: admin_configuracoes.php?secao=financeiro&" . ($erro_fin === null ? 'msg=salvo' : 'msg=erro_fin&detalhe=' . urlencode($erro_fin)));
+        exit();
+    }
 
     // Upsert genérico: salva cada campo como chave-valor
     $campos = $_POST;
@@ -51,7 +65,9 @@ try {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 } catch (Exception $e) {}
 
-$secao_ativa = $_GET['secao'] ?? 'geral';
+$secao_ativa    = $_GET['secao'] ?? 'geral';
+$eh_superadmin  = (($_SESSION['usuario_nivel'] ?? '') === 'superadmin');
+if ($secao_ativa === 'financeiro' && !$eh_superadmin) $secao_ativa = 'geral';   // oculta a seção de quem não é superadmin
 
 // Badges sidebar
 $devolucoes_pend = $pdo->query("SELECT COUNT(*) FROM devolucoes WHERE status='pendente'")->fetchColumn();
@@ -148,6 +164,7 @@ $pagina_atual = 'configuracoes';
 
         .msg-ok { background:#e8f5e9; border:1px solid #c8e6c9; color:var(--success); padding:12px 22px; border-radius:50px; margin-bottom:22px; font-size:13px; font-weight:700; display:inline-flex; align-items:center; gap:8px; }
 
+        .msg-err { background:rgba(255,77,77,.08); border:1px solid rgba(255,77,77,.25); color:var(--danger); padding:12px 22px; border-radius:50px; margin-bottom:20px; font-size:13px; font-weight:700; display:inline-block; }
         /* Danger zone */
         .danger-zone { border:1.5px solid rgba(255,77,77,.3); border-radius:20px; padding:24px; margin-top:10px; }
         .danger-zone h3 { font-size:13px; font-weight:800; color:var(--danger); margin-bottom:6px; }
@@ -174,6 +191,11 @@ $pagina_atual = 'configuracoes';
     <?php if(isset($_GET['msg']) && $_GET['msg'] === 'salvo'): ?>
     <div class="msg-ok">✓ Configurações salvas com sucesso!</div>
     <?php endif; ?>
+    <?php if(isset($_GET['msg']) && $_GET['msg'] === 'erro_fin'): ?>
+    <div class="msg-err">⚠ <?= htmlspecialchars($_GET['detalhe'] ?? 'Não foi possível salvar.') ?></div>
+    <?php elseif(isset($_GET['msg']) && $_GET['msg'] === 'csrf'): ?>
+    <div class="msg-err">⚠ Sessão expirada. Recarregue a página e tente de novo.</div>
+    <?php endif; ?>
 
     <div class="config-layout">
 
@@ -187,6 +209,9 @@ $pagina_atual = 'configuracoes';
             <a href="?secao=frete"     class="config-nav-item <?= $secao_ativa==='frete'     ?'active':''?>">📦 Frete</a>
             <a href="?secao=seguranca" class="config-nav-item <?= $secao_ativa==='seguranca' ?'active':''?>">🔒 Segurança</a>
             <a href="?secao=sistema"   class="config-nav-item <?= $secao_ativa==='sistema'   ?'active':''?>">⚙️ Sistema</a>
+            <?php if($eh_superadmin): ?>
+            <a href="?secao=financeiro" class="config-nav-item <?= $secao_ativa==='financeiro' ?'active':''?>">🧾 Financeiro <span style="font-size:9px;opacity:.6;">(superadmin)</span></a>
+            <?php endif; ?>
         </nav>
 
         <!-- PAINÉIS -->
@@ -261,6 +286,7 @@ $pagina_atual = 'configuracoes';
                             <span>Desativar coloca a loja em modo manutenção</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="loja_ativa" value="0">
                             <input type="checkbox" name="loja_ativa" value="1" <?= cfg($pdo,'loja_loja_ativa','1')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -272,6 +298,7 @@ $pagina_atual = 'configuracoes';
                             <span>Mostra quantidade disponível na página do produto</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="exibir_estoque" value="0">
                             <input type="checkbox" name="exibir_estoque" value="1" <?= cfg($pdo,'loja_exibir_estoque','0')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -283,6 +310,7 @@ $pagina_atual = 'configuracoes';
                             <span>Checkout como visitante (guest checkout)</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="guest_checkout" value="0">
                             <input type="checkbox" name="guest_checkout" value="1" <?= cfg($pdo,'loja_guest_checkout','0')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -296,6 +324,7 @@ $pagina_atual = 'configuracoes';
                             <span>Clientes podem avaliar produtos após a compra</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="avaliacoes_ativas" value="0">
                             <input type="checkbox" name="avaliacoes_ativas" value="1" <?= cfg($pdo,'loja_avaliacoes_ativas','1')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -307,6 +336,7 @@ $pagina_atual = 'configuracoes';
                             <span>Avaliações ficam pendentes até aprovação do admin</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="moderar_avaliacoes" value="0">
                             <input type="checkbox" name="moderar_avaliacoes" value="1" <?= cfg($pdo,'loja_moderar_avaliacoes','1')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -393,6 +423,7 @@ $pagina_atual = 'configuracoes';
                             <span>Envia e-mail ao cliente quando o pedido é criado</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="email_pedido" value="0">
                             <input type="checkbox" name="email_pedido" value="1" <?= cfg($pdo,'emails_email_pedido','1')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -404,6 +435,7 @@ $pagina_atual = 'configuracoes';
                             <span>Avisa o cliente quando o pedido for despachado</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="email_envio" value="0">
                             <input type="checkbox" name="email_envio" value="1" <?= cfg($pdo,'emails_email_envio','1')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -415,6 +447,7 @@ $pagina_atual = 'configuracoes';
                             <span>Permite que clientes redefinam a senha por e-mail</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="email_senha" value="0">
                             <input type="checkbox" name="email_senha" value="1" <?= cfg($pdo,'emails_email_senha','1')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -426,6 +459,7 @@ $pagina_atual = 'configuracoes';
                             <span>Notifica o e-mail de suporte quando estoque baixar</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="email_estoque" value="0">
                             <input type="checkbox" name="email_estoque" value="1" <?= cfg($pdo,'emails_email_estoque','1')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -458,6 +492,7 @@ $pagina_atual = 'configuracoes';
                             <span>Aprovação imediata — sem taxas de processamento</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="pix_ativo" value="0">
                             <input type="checkbox" name="pix_ativo" value="1" <?= cfg($pdo,'pagamento_pix_ativo','1')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -469,6 +504,7 @@ $pagina_atual = 'configuracoes';
                             <span>Parcelamento em até 12x</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="cartao_ativo" value="0">
                             <input type="checkbox" name="cartao_ativo" value="1" <?= cfg($pdo,'pagamento_cartao_ativo','1')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -480,6 +516,7 @@ $pagina_atual = 'configuracoes';
                             <span>Prazo de compensação: 1-3 dias úteis</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="boleto_ativo" value="0">
                             <input type="checkbox" name="boleto_ativo" value="1" <?= cfg($pdo,'pagamento_boleto_ativo','1')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -548,6 +585,7 @@ $pagina_atual = 'configuracoes';
                             <span>Aplica frete grátis acima do valor mínimo definido</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="frete_gratis_ativo" value="0">
                             <input type="checkbox" name="frete_gratis_ativo" value="1" <?= cfg($pdo,'frete_frete_gratis_ativo','1')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -576,6 +614,7 @@ $pagina_atual = 'configuracoes';
                             <span>Cálculo automático via API dos Correios</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="correios_ativo" value="0">
                             <input type="checkbox" name="correios_ativo" value="1" <?= cfg($pdo,'frete_correios_ativo','1')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -587,6 +626,7 @@ $pagina_atual = 'configuracoes';
                             <span>Entrega expressa para capitais</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="jadlog_ativo" value="0">
                             <input type="checkbox" name="jadlog_ativo" value="1" <?= cfg($pdo,'frete_jadlog_ativo','0')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -598,6 +638,7 @@ $pagina_atual = 'configuracoes';
                             <span>Usa um valor fixo para todos os pedidos</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="frete_fixo_ativo" value="0">
                             <input type="checkbox" name="frete_fixo_ativo" value="1" <?= cfg($pdo,'frete_frete_fixo_ativo','0')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -616,6 +657,100 @@ $pagina_atual = 'configuracoes';
 
                     <div class="save-bar">
                         <button type="submit" class="btn-admin-primary">💾 Salvar Configurações de Frete</button>
+                    </div>
+                </form>
+            </div>
+            <?php endif; ?>
+
+            <!-- ── FINANCEIRO (somente superadmin) ── -->
+            <?php if($secao_ativa === 'financeiro' && $eh_superadmin): ?>
+            <div class="admin-card config-panel active">
+                <div class="card-header"><span class="card-title">🧾 Financeiro — Impostos, Taxas e Custos</span></div>
+
+                <div style="background:#fff8e1;border:1px solid #ffe082;color:#b45309;border-radius:14px;padding:14px 18px;font-size:13px;line-height:1.6;margin-bottom:22px;">
+                    <strong>Valores de exemplo.</strong> Os números abaixo vêm preenchidos só para você ter por onde começar.
+                    Ajuste de acordo com o seu regime tributário e o contrato com cada gateway — eles alimentam o cálculo de lucro do Dashboard e do Relatório (DRE).
+                    Pedidos novos gravam a taxa e o imposto no momento da compra; mudar um valor aqui <u>não</u> reescreve o histórico já gravado.
+                </div>
+
+                <style>
+                    .fin-taxas { width:100%; border-collapse:collapse; margin-bottom:22px; font-size:13px; }
+                    .fin-taxas th { font-size:10px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:1px; text-align:left; padding:8px 6px; }
+                    .fin-taxas td { padding:6px; }
+                    .fin-taxas td:first-child { font-weight:800; white-space:nowrap; }
+                    .fin-taxas input { width:100%; padding:11px 12px; border:1px solid var(--border); border-radius:10px; font-size:13px; }
+                    .fin-taxas .gw-head { border-bottom:2px solid var(--border); text-align:center; }
+                    @media (max-width:760px){ .fin-taxas { display:block; overflow-x:auto; } }
+                </style>
+
+                <form method="POST">
+                    <input type="hidden" name="secao" value="financeiro">
+                    <input type="hidden" name="csrf" value="<?= htmlspecialchars(fin_csrf_token()) ?>">
+
+                    <div class="config-section-title">Impostos sobre a venda</div>
+                    <div class="field-group">
+                        <div class="input-group">
+                            <label>Regime / nome do imposto</label>
+                            <input type="text" name="imposto_nome" maxlength="60" value="<?= htmlspecialchars(fin_cfg($pdo,'imposto_nome')) ?>">
+                            <small>Apenas um rótulo para os relatórios (ex.: Simples Nacional, MEI, Lucro Presumido).</small>
+                        </div>
+                        <div class="input-group">
+                            <label>Alíquota efetiva sobre o faturamento (%)</label>
+                            <input type="number" step="0.01" min="0" max="100" name="imposto_percentual" value="<?= htmlspecialchars(fin_cfg($pdo,'imposto_percentual')) ?>">
+                            <small>Aplicada sobre o valor cobrado do cliente em cada pedido pago. Peça ao seu contador a alíquota efetiva.</small>
+                        </div>
+                    </div>
+
+                    <div class="config-section-title">Taxas dos gateways de pagamento</div>
+                    <?php $gws = ['mp' => 'Mercado Pago', 'ps' => 'PagBank (PagSeguro)'];
+                          $mets = ['pix' => '⚡ PIX', 'cartao' => '💳 Cartão de crédito', 'boleto' => '🏦 Boleto']; ?>
+                    <table class="fin-taxas">
+                        <thead>
+                            <tr><th></th><?php foreach($gws as $nome): ?><th colspan="2" class="gw-head"><?= $nome ?></th><?php endforeach; ?></tr>
+                            <tr><th>Forma de pagamento</th><?php foreach($gws as $_): ?><th>% do valor</th><th>R$ fixo</th><?php endforeach; ?></tr>
+                        </thead>
+                        <tbody>
+                        <?php foreach($mets as $m => $mnome): ?>
+                            <tr>
+                                <td><?= $mnome ?></td>
+                                <?php foreach($gws as $g => $_): ?>
+                                <td><input type="number" step="0.01" min="0" max="100"    name="taxa_<?= $g ?>_<?= $m ?>_pct"  value="<?= htmlspecialchars(fin_cfg($pdo,"taxa_{$g}_{$m}_pct")) ?>"></td>
+                                <td><input type="number" step="0.01" min="0" max="100000" name="taxa_<?= $g ?>_<?= $m ?>_fixa" value="<?= htmlspecialchars(fin_cfg($pdo,"taxa_{$g}_{$m}_fixa")) ?>"></td>
+                                <?php endforeach; ?>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+
+                    <div class="config-section-title">Custos por pedido</div>
+                    <div class="field-group">
+                        <div class="input-group">
+                            <label>Embalagem por pedido (R$)</label>
+                            <input type="number" step="0.01" min="0" name="embalagem_pedido" value="<?= htmlspecialchars(fin_cfg($pdo,'embalagem_pedido')) ?>">
+                            <small>Caixa, fita, etiqueta, enchimento etc.</small>
+                        </div>
+                        <div class="input-group">
+                            <label>Custo médio de frete — estimativa (R$)</label>
+                            <input type="number" step="0.01" min="0" name="frete_custo_medio" value="<?= htmlspecialchars(fin_cfg($pdo,'frete_custo_medio')) ?>">
+                            <small>Usado enquanto o custo real (Correios/Jadlog) não é informado no pedido. Coloque 0 para assumir que o custo é igual ao frete cobrado.</small>
+                        </div>
+                    </div>
+
+                    <div class="config-section-title">Devoluções</div>
+                    <div class="toggle-row">
+                        <div class="toggle-info">
+                            <strong>Produto devolvido volta ao estoque</strong>
+                            <span>Ligado: o custo do produto devolvido é recuperado no cálculo. Desligado: conta como perda (mais conservador).</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="hidden" name="devolucao_recupera_custo" value="0">
+                            <input type="checkbox" name="devolucao_recupera_custo" value="1" <?= fin_cfg($pdo,'devolucao_recupera_custo')==='1'?'checked':''?>>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="save-bar">
+                        <button type="submit" class="btn-admin-primary">💾 Salvar Configurações Financeiras</button>
                     </div>
                 </form>
             </div>
@@ -665,6 +800,7 @@ $pagina_atual = 'configuracoes';
                             <span>Exige código por e-mail no login de admins</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="2fa_ativo" value="0">
                             <input type="checkbox" name="2fa_ativo" value="1" <?= cfg($pdo,'seguranca_2fa_ativo','0')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -676,6 +812,7 @@ $pagina_atual = 'configuracoes';
                             <span>Registra todos os logins no painel de auditoria</span>
                         </div>
                         <label class="toggle-switch">
+                            <input type="hidden" name="log_acessos" value="0">
                             <input type="checkbox" name="log_acessos" value="1" <?= cfg($pdo,'seguranca_log_acessos','1')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
@@ -725,6 +862,7 @@ $pagina_atual = 'configuracoes';
                     <form method="POST" style="display:inline;">
                         <input type="hidden" name="secao" value="sistema">
                         <label class="toggle-switch">
+                            <input type="hidden" name="modo_manutencao" value="0">
                             <input type="checkbox" name="modo_manutencao" value="1"
                                    <?= cfg($pdo,'sistema_modo_manutencao','0')==='1'?'checked':''?>
                                    onchange="this.form.submit()">

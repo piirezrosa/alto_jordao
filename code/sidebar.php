@@ -37,6 +37,9 @@ $pag_ativa = $pagina_atual ?? '';
             <?php if($sb_p_pendente > 0): ?><span class="sb-badge"><?= $sb_p_pendente ?></span><?php endif; ?>
         </a>
         <a href="admin_vendas.php" class="sb-item <?= $pag_ativa === 'financeiro' ? 'active' : '' ?>">💰 Financeiro</a>
+        <?php if (in_array($_SESSION['usuario_nivel'] ?? '', ['admin','superadmin'], true)): ?>
+        <a href="admin_despesas.php" class="sb-item <?= $pag_ativa === 'despesas' ? 'active' : '' ?>">🧾 Despesas Fixas</a>
+        <?php endif; ?>
         <a href="entregas.php" class="sb-item <?= $pag_ativa === 'logistica' ? 'active' : '' ?>">📦 Logística</a>
         <a href="admin_devolucoes.php" class="sb-item <?= $pag_ativa === 'devolucoes' ? 'active' : '' ?>">
             🔄 Devoluções

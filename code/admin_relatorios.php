@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'financeiro_helpers.php';
 
 if (!isset($_SESSION['usuario_nivel']) ||
     !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
@@ -103,8 +104,15 @@ if ($aba === 'produtos') {
     $produtos_perf = $produtos_perf->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Aba: margem de lucro
+// Aba: DRE (resultado realista: taxas, impostos, frete, embalagem e despesas fixas)
+if ($aba === 'dre') {
+    fin_garantir_schema($pdo);
+    $dre = fin_resumo($pdo, $data_ini, $data_fim);
+}
+
+// Aba: margem de lucro (lucro bruto por produto)
 if ($aba === 'margem') {
+    $status_fat = "'" . implode("','", FIN_STATUS_FATURADO) . "'";
     $margem_dados = $pdo->prepare("
         SELECT
             p.id, p.nome, p.preco, p.custo,
@@ -115,31 +123,33 @@ if ($aba === 'margem') {
                 (SELECT COUNT(*) FROM devolucoes d
                  JOIN pedidos pd ON d.pedido_id = pd.id
                  JOIN itens_pedido ip2 ON ip2.pedido_id = pd.id
-                 WHERE ip2.produto_id = p.id), 0) AS devolucoes,
+                 WHERE ip2.produto_id = p.id
+                   AND DATE(pd.data_pedido) BETWEEN ? AND ?), 0) AS devolucoes,
             COALESCE(
-                (SELECT SUM(ip3.preco_unitario) FROM devolucoes d2
+                (SELECT SUM(ip3.preco_unitario * ip3.quantidade) FROM devolucoes d2
                  JOIN pedidos pd2 ON d2.pedido_id = pd2.id
                  JOIN itens_pedido ip3 ON ip3.pedido_id = pd2.id
-                 WHERE ip3.produto_id = p.id AND d2.status='aprovado'), 0) AS valor_devolvido
+                 WHERE ip3.produto_id = p.id AND d2.status='aprovado'
+                   AND DATE(pd2.data_pedido) BETWEEN ? AND ?), 0) AS valor_devolvido
         FROM produtos p
         LEFT JOIN itens_pedido ip ON ip.produto_id = p.id
-        LEFT JOIN pedidos pd3 ON pd3.id = ip.pedido_id
-            AND pd3.status NOT IN ('cancelado')
-            AND DATE(pd3.data_pedido) BETWEEN ? AND ?
+            AND ip.pedido_id IN (SELECT id FROM pedidos
+                                  WHERE status IN ($status_fat)
+                                    AND DATE(data_pedido) BETWEEN ? AND ?)
         WHERE p.ativo = 1
         GROUP BY p.id
         HAVING qtd_vendida > 0
         ORDER BY receita DESC
         LIMIT 30
     ");
-    $margem_dados->execute([$data_ini, $data_fim]);
+    $margem_dados->execute([$data_ini, $data_fim, $data_ini, $data_fim, $data_ini, $data_fim]);
     $margem_dados = $margem_dados->fetchAll(PDO::FETCH_ASSOC);
 
     // Totais
     $total_receita  = array_sum(array_column($margem_dados, 'receita'));
     $total_custo    = array_sum(array_column($margem_dados, 'custo_total'));
     $total_dev_val  = array_sum(array_column($margem_dados, 'valor_devolvido'));
-    $lucro_liquido  = $total_receita - $total_custo - $total_dev_val;
+    $lucro_liquido  = $total_receita - $total_custo - $total_dev_val;   // lucro BRUTO (sem taxas, impostos, frete e despesas fixas)
     $margem_geral   = $total_receita > 0 ? ($lucro_liquido / $total_receita) * 100 : 0;
 }
 
@@ -220,7 +230,8 @@ $pagina_atual = 'relatorios';
     <div class="aba-nav">
         <a href="?aba=vendas&periodo=<?= $periodo ?>"   class="aba-btn <?= $aba==='vendas'  ?'active':''?>">📊 Comparativo de Vendas</a>
         <a href="?aba=produtos&periodo=<?= $periodo ?>" class="aba-btn <?= $aba==='produtos'?'active':''?>">⚠️ Desempenho de Produtos</a>
-        <a href="?aba=margem&periodo=<?= $periodo ?>"   class="aba-btn <?= $aba==='margem'  ?'active':''?>">💰 Margem de Lucro</a>
+        <a href="?aba=margem&periodo=<?= $periodo ?>"   class="aba-btn <?= $aba==='margem'  ?'active':''?>">💰 Margem por Produto</a>
+        <a href="?aba=dre&periodo=<?= $periodo ?>"      class="aba-btn <?= $aba==='dre'     ?'active':''?>">🧾 DRE (Lucro Real)</a>
     </div>
 
     <!-- Filtro de período -->
@@ -352,6 +363,92 @@ $pagina_atual = 'relatorios';
         </div>
     </div>
 
+    <?php elseif($aba === 'dre'): ?>
+    <!-- Aba: DRE -->
+    <?php
+        $f = fn($v) => 'R$ ' . number_format((float)$v, 2, ',', '.');
+        $linhas = [
+            ['(+) Receita (produtos − descontos + frete cobrado)', $dre['receita'], 1, false],
+            ['(−) Devoluções / estornos',                         $dre['devolucoes'], -1, false],
+            ['(−) Custo das mercadorias (CMV)',                   $dre['cmv'] - $dre['cmv_recuperado'], -1, false],
+            ['(−) Taxas do gateway',                              $dre['taxas_gateway'], -1, false],
+            ['(−) Impostos',                                      $dre['impostos'], -1, false],
+            ['(−) Frete pago às transportadoras',                 $dre['frete_custo'], -1, false],
+            ['(−) Embalagem',                                     $dre['embalagem'], -1, false],
+            ['(=) Margem de contribuição',                        $dre['margem_contribuicao'], 0, true],
+            ['(−) Despesas fixas (rateadas no período)',          $dre['despesas_fixas'], -1, false],
+            ['(=) Lucro líquido',                                 $dre['lucro_liquido'], 0, true],
+        ];
+    ?>
+    <?php if ($dre['itens_sem_custo'] > 0): ?>
+    <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:14px;padding:12px 16px;margin-bottom:14px;font-size:13px;">
+        ⚠️ <strong><?= (int)$dre['itens_sem_custo'] ?></strong> item(ns) vendido(s) sem custo cadastrado — o lucro está superestimado. Preencha o custo dos produtos.
+    </div>
+    <?php endif; ?>
+    <?php if ($dre['n_frete_estimado'] > 0): ?>
+    <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:14px;padding:12px 16px;margin-bottom:14px;font-size:13px;">
+        ⚠️ <strong><?= (int)$dre['n_frete_estimado'] ?></strong> pedido(s) com frete <em>estimado</em> (custo médio das configurações). Informe o custo real em <a href="admin_pedidos.php">Pedidos</a>.
+    </div>
+    <?php endif; ?>
+
+    <div class="kpi-grid" style="margin-bottom:22px;">
+        <div class="kpi-card featured"><div class="kpi-icon">💰</div><div class="kpi-label">Receita</div>
+            <div class="kpi-value"><?= $f($dre['receita']) ?></div><div class="kpi-sub"><?= (int)$dre['n_pedidos'] ?> pedidos · ticket <?= $f($dre['ticket_medio']) ?></div></div>
+        <div class="kpi-card"><div class="kpi-icon">📊</div><div class="kpi-label">Margem de contribuição</div>
+            <div class="kpi-value"><?= $f($dre['margem_contribuicao']) ?></div><div class="kpi-sub"><?= $dre['margem_contribuicao_pct'] ?>% da receita</div></div>
+        <div class="kpi-card"><div class="kpi-icon">🧾</div><div class="kpi-label">Despesas fixas</div>
+            <div class="kpi-value"><?= $f($dre['despesas_fixas']) ?></div><div class="kpi-sub"><a href="admin_despesas.php">gerenciar</a></div></div>
+        <div class="kpi-card"><div class="kpi-icon">📈</div><div class="kpi-label">Lucro líquido</div>
+            <div class="kpi-value" style="color:<?= $dre['lucro_liquido'] >= 0 ? 'var(--success)' : 'var(--danger)' ?>"><?= $f($dre['lucro_liquido']) ?></div>
+            <div class="kpi-sub"><?= $dre['lucro_liquido_pct'] ?>% da receita</div></div>
+    </div>
+
+    <div class="comp-card" style="margin-bottom:22px;">
+        <table class="perf-table">
+            <tbody>
+            <?php foreach ($linhas as [$rot, $val, $sin, $total]): ?>
+                <tr style="<?= $total ? 'font-weight:900;background:var(--grey-bg);' : '' ?>">
+                    <td><?= $rot ?></td>
+                    <td style="text-align:right;<?= $total ? 'color:' . ($val >= 0 ? 'var(--success)' : 'var(--danger)') . ';' : '' ?>">
+                        <?= $f($val) ?>
+                    </td>
+                    <td style="text-align:right;color:var(--muted);width:80px;">
+                        <?= $dre['receita'] > 0 ? round($val / $dre['receita'] * 100, 1) . '%' : '—' ?>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="comp-grid" style="grid-template-columns:1fr 1fr;">
+        <div class="comp-card">
+            <div class="comp-label">Ponto de equilíbrio (no período)</div>
+            <?php if ($dre['ponto_equilibrio'] !== null): ?>
+                <div class="comp-atual"><?= $f($dre['ponto_equilibrio']) ?></div>
+                <div class="comp-ant">Receita necessária para cobrir as despesas fixas.
+                    <?= $dre['receita'] >= $dre['ponto_equilibrio']
+                        ? '<strong style="color:var(--success)">Acima do equilíbrio ✔</strong>'
+                        : '<strong style="color:var(--danger)">Faltam ' . $f($dre['ponto_equilibrio'] - $dre['receita']) . '</strong>' ?></div>
+            <?php else: ?>
+                <div class="comp-ant">Indisponível: a margem de contribuição do período não é positiva.</div>
+            <?php endif; ?>
+        </div>
+        <div class="comp-card">
+            <div class="comp-label">Despesas fixas por categoria</div>
+            <?php if (!$dre['despesas_categorias']): ?>
+                <div class="comp-ant">Nenhuma despesa cadastrada. <a href="admin_despesas.php">Cadastrar</a></div>
+            <?php else: foreach ($dre['despesas_categorias'] as $cat => $v): ?>
+                <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;">
+                    <span><?= htmlspecialchars(ucfirst($cat)) ?></span><strong><?= $f($v) ?></strong>
+                </div>
+            <?php endforeach; endif; ?>
+        </div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:14px;">
+        Considera pedidos pagos, em separação, enviados e entregues. Taxas e impostos são gravados no momento da compra com as alíquotas configuradas.
+    </p>
+
     <?php elseif($aba === 'margem'): ?>
     <!-- Aba: margem de lucro -->
     <div class="kpi-grid" style="margin-bottom:22px;">
@@ -372,11 +469,11 @@ $pagina_atual = 'relatorios';
         </div>
         <div class="kpi-card">
             <div class="kpi-icon">📈</div>
-            <div class="kpi-label">Lucro Líquido Est.</div>
+            <div class="kpi-label">Lucro Bruto</div>
             <div class="kpi-value" style="color:<?= $lucro_liquido >= 0 ? 'var(--success)' : 'var(--danger)' ?>">
                 R$ <?= number_format($lucro_liquido,2,',','.') ?>
             </div>
-            <div class="kpi-sub">Margem: <?= round($margem_geral,1) ?>%</div>
+            <div class="kpi-sub">Margem bruta: <?= round($margem_geral,1) ?>% · <a href="?aba=dre&periodo=<?= $periodo ?>">ver lucro real (DRE)</a></div>
         </div>
     </div>
 

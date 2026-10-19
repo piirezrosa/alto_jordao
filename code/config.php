@@ -4,13 +4,17 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-$host = 'localhost';
-$db   = 'alto_jordao';
-$user = 'root';
-$pass = ''; 
+require_once __DIR__ . '/env.php';
+
+// Valores padrão = XAMPP local; em produção defina no .env (veja .env.example)
+$host = (string)env('DB_HOST', 'localhost');
+$port = (string)env('DB_PORT', '3306');
+$db   = (string)env('DB_NAME', 'alto_jordao');
+$user = (string)env('DB_USER', 'root');
+$pass = (string)env('DB_PASS', '');
 $charset = 'utf8mb4';
 
-$dsn = "mysql:host=$host;port=3306;dbname=$db;charset=$charset";
+$dsn = "mysql:host=$host;port=$port;dbname=$db;charset=$charset";
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,

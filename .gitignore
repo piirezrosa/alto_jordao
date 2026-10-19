@@ -1,0 +1,17 @@
+# Segredos — NUNCA versionar
+.env
+code/.env
+*.env
+!.env.example
+!code/.env.example
+
+# Relatórios gerados (dados do negócio, mesmo criptografados)
+code/relatorios_seguros/*.ajenc
+relatorios_seguros/*.ajenc
+
+# Sistema / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log

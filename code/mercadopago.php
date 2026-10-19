@@ -1,14 +1,15 @@
 <?php
 // CREDENCIAIS MERCADO PAGO
-define('MP_ACCESS_TOKEN', 'DEPOIS_COLOCAR_ACCESS_TOKEN_AQUI');
-define('MP_PUBLIC_KEY', 'DEPOIS_COLOCAR_PUBLIC_KEY_AQUI');
-define('MP_SANDBOX', true); // true = testes | false = produção
+require_once __DIR__ . '/env.php';
+define('MP_ACCESS_TOKEN', (string)env('MP_ACCESS_TOKEN', ''));
+define('MP_PUBLIC_KEY', (string)env('MP_PUBLIC_KEY', ''));
+define('MP_SANDBOX', env_bool('MP_SANDBOX', true)); // true = testes | false = produção
 
 // URL base da API (muda automaticamente dependendo do ambiente)
 define('MP_API_URL', 'https://api.mercadopago.com');
 
 // URL do meu site - usada para redirect e webhook
-define('SITE_URL', 'http://localhost/alto_jordao/code');
+define('SITE_URL', rtrim((string)env('SITE_URL', 'http://localhost/alto_jordao/code'), '/'));
 
 class MercadoPago {
     /**

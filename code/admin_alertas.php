@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'alertas_helpers.php';
 
 if (!isset($_SESSION['usuario_nivel']) ||
     !in_array($_SESSION['usuario_nivel'], ['admin','superadmin'])) {
@@ -21,11 +22,18 @@ if (isset($_GET['marcar_todos'])) {
 
 // DISPARAR ANÁLISE MANUAL 
 if (isset($_GET['rodar_analise']) && $_SESSION['usuario_nivel'] === 'superadmin') {
-    ob_start();
-    include 'analisar_produtos.php';
-    $output_analise = ob_get_clean();
-    header("Location: admin_alertas.php?msg=analise_ok"); exit;
+    try {
+        $r = alertas_executar_analise($pdo);
+        $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('alertas_ultima_analise', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)")->execute([(string)time()]);
+        header("Location: admin_alertas.php?msg=analise_ok&novos=" . (int)$r['total'] . "&prod=" . (int)$r['produtos']); exit;
+    } catch (Throwable $e) {
+        error_log('[ALERTAS] ' . $e->getMessage());
+        header("Location: admin_alertas.php?msg=analise_erro&detalhe=" . urlencode(mb_substr($e->getMessage(), 0, 200))); exit;
+    }
 }
+
+// Abrir a Central de Alertas já atualiza a análise se ela estiver velha (>10 min) — sem depender de cron
+alertas_analise_se_necessario($pdo, 10);
 
 // FILTROS 
 $filtro_tipo  = $_GET['tipo']   ?? '';
@@ -174,7 +182,8 @@ $pagina_atual = 'alertas';
         <?php
         $msgs = [
             'todos_lidos' => '✓ Todos os alertas marcados como lidos.',
-            'analise_ok'  => '✓ Análise executada! Novos alertas gerados.',
+            'analise_ok'  => '✓ Análise executada: ' . (int)($_GET['novos'] ?? 0) . ' novo(s) alerta(s) em ' . (int)($_GET['prod'] ?? 0) . ' produtos analisados.',
+            'analise_erro' => '⚠ A análise falhou: ' . htmlspecialchars($_GET['detalhe'] ?? ''),
         ];
         echo $msgs[$_GET['msg']] ?? '';
         ?>

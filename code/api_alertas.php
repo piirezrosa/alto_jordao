@@ -2,6 +2,7 @@
 // Endpoint AJAX — chamado a cada 60s pelo painel admin
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'alertas_helpers.php';
 
 header('Content-Type: application/json');
 
@@ -30,6 +31,9 @@ if ($acao === 'marcar_todos_lidos') {
     echo json_encode(['ok' => true]);
     exit;
 }
+
+// Mantém os alertas atualizados enquanto houver um admin com o painel aberto (no máx. 1x a cada 10 min)
+alertas_analise_se_necessario($pdo, 10);
 
 // Contar alertas não lidos e buscar os últimos 5
 $nao_lidos = $pdo->query("SELECT COUNT(*) FROM alertas WHERE lido=0")->fetchColumn();

@@ -6,6 +6,7 @@ if (!defined('CONTEUDO_AUTORIZADO')) { exit('Acesso negado.'); }
 $sb_p_pendente      = 0;
 $sb_devolucoes_pend = 0;
 $sb_estoque_critico = 0;
+$sb_alertas         = 0;
 
 if (isset($pdo)) {
     try {
@@ -13,6 +14,7 @@ if (isset($pdo)) {
         $sb_p_pendente      = (int) $pdo->query("SELECT COUNT(*) FROM pedidos WHERE status='pendente'")->fetchColumn();
         $sb_devolucoes_pend = (int) $pdo->query("SELECT COUNT(*) FROM devolucoes WHERE status='pendente'")->fetchColumn();
         $sb_estoque_critico = (int) $pdo->query("SELECT COUNT(*) FROM produtos WHERE estoque<=3 AND ativo=1")->fetchColumn();
+        $sb_alertas         = (int) $pdo->query("SELECT COUNT(*) FROM alertas WHERE lido=0")->fetchColumn();
     } catch (PDOException $e) {
         // Silencia ou trata o erro para não quebrar o layout caso o banco falhe
     }
@@ -77,7 +79,10 @@ $pag_ativa = $pagina_atual ?? '';
         <a href="gerar_relatorio_criptografado.php" class="sb-item <?= $pag_ativa === 'relatorio.criptografado' ? 'active' : '' ?>">💾 Relatório Criptografado</a>
         <a href="admin_logs.php" class="sb-item <?= $pag_ativa === 'logs' ? 'active' : '' ?>">🔍 Logs & Auditoria</a>
         <a href="admin_configuracoes.php" class="sb-item <?= $pag_ativa === 'configuracoes' ? 'active' : '' ?>">⚙️ Configurações</a>
-        <a href="admin_alertas.php" class="sb-item <?= $pag_ativa === 'alertas' ? 'active' : '' ?>">🚨 Alertas</a>
+        <a href="admin_alertas.php" class="sb-item <?= $pag_ativa === 'alertas' ? 'active' : '' ?>">
+            🚨 Alertas
+            <span class="sb-badge" id="sbBadgeAlertas" <?= $sb_alertas > 0 ? '' : 'style="display:none"' ?>><?= $sb_alertas ?></span>
+        </a>
         <a href="admin_configuracoes_alertas.php"class="sb-item <?= $pag_ativa === 'config.alertas' ? 'active' : '' ?>">🔔 Config. Alertas</a>
     </div>
 
@@ -93,3 +98,44 @@ $pag_ativa = $pagina_atual ?? '';
         <a href="logout.php" class="sb-item" style="color: var(--danger, #ff4d4d);">🚪 Sair</a>
     </div>
 </aside>
+
+<?php if (in_array($_SESSION['usuario_nivel'] ?? '', ['admin','superadmin'], true)): ?>
+<style>
+    #ajToast { position:fixed; right:22px; bottom:22px; z-index:9999; display:flex; flex-direction:column; gap:8px; max-width:340px; }
+    .aj-toast-item { background:#111; color:#fff; border-radius:14px; padding:12px 16px; font-size:13px; box-shadow:0 8px 24px rgba(0,0,0,.25); border-left:4px solid #f57c00; cursor:pointer; }
+    .aj-toast-item.critico { border-left-color:#d32f2f; }
+    .aj-toast-item small { display:block; opacity:.7; margin-top:2px; }
+</style>
+<div id="ajToast"></div>
+<script>
+// Consulta api_alertas.php a cada 60 s: atualiza o selo da sidebar e avisa de alertas novos
+(function () {
+    let ultimoMax = null;
+    async function checar() {
+        try {
+            const r = await fetch('api_alertas.php', { cache: 'no-store' });
+            const d = await r.json();
+            const b = document.getElementById('sbBadgeAlertas');
+            if (b) { b.textContent = d.nao_lidos; b.style.display = d.nao_lidos > 0 ? '' : 'none'; }
+            const ids = (d.alertas || []).map(a => a.id);
+            const maxId = ids.length ? Math.max(...ids) : 0;
+            if (ultimoMax !== null) {
+                (d.alertas || []).filter(a => a.id > ultimoMax).forEach(a => {
+                    const t = document.createElement('div');
+                    t.className = 'aj-toast-item ' + (a.nivel === 'critico' ? 'critico' : '');
+                    const tt = document.createElement('strong'); tt.textContent = (a.icone || '🔔') + ' ' + a.titulo;
+                    const sm = document.createElement('small'); sm.textContent = 'Clique para ver';
+                    t.append(tt, sm);
+                    t.onclick = () => { window.location = 'admin_alertas.php'; };
+                    document.getElementById('ajToast').appendChild(t);
+                    setTimeout(() => t.remove(), 12000);
+                });
+            }
+            ultimoMax = Math.max(ultimoMax ?? 0, maxId);
+        } catch (e) { /* sem conexão: tenta de novo no próximo ciclo */ }
+    }
+    checar();
+    setInterval(checar, 60000);
+})();
+</script>
+<?php endif; ?>

@@ -187,7 +187,12 @@ if ($usuario_logado) {
                         'lavanda' => '#E6E6FA',
                         'coral' => '#FF7F50',
                         'khaki' => '#C3B091',
-                        'marsala' => '#955251'
+                        'marsala' => '#955251',
+                        'azul-bebê' => '#9BB2C7',
+                        'vermelho' => '#FF0000',
+                        'azul-royal' => '#4169E1',
+                        'jeans-claro' => '#5DADEC',
+                        'jeans-escuro' => '#1C3F95'
                     ];
                     $corCss = $coresMap[$corChave] ?? $corChave;
                 ?>

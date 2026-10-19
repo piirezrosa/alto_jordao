@@ -3,7 +3,7 @@
  * Calcula o resumo do checkout NO SERVIDOR (itens, cupom, desconto PIX, frete, total).
  * A tela só exibe o que vem daqui; a cobrança real usa a mesma função (loja_calcular_totais).
  *
- * POST JSON: { carrinho: [{id, qtd}], cupom: "CODIGO"|"", metodo: "pix"|"cartao"|"boleto" }
+ * POST JSON: { carrinho: [{id, qtd}], cupom: "CODIGO"|"", metodo: "pix"|"cartao"|"boleto", cep: "00000000", frete_servico: "pac"|... }
  */
 ini_set('display_errors', '0');
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
@@ -27,6 +27,8 @@ if (!is_array($d)) saida(['ok' => false, 'erro' => 'Requisição inválida.'], 4
 
 $metodo = in_array($d['metodo'] ?? 'pix', ['pix', 'cartao', 'boleto'], true) ? $d['metodo'] : 'pix';
 $codigo = strtoupper(trim((string)($d['cupom'] ?? '')));
+$cep    = preg_replace('/\D/', '', (string)($d['cep'] ?? ''));
+$servico = preg_replace('/[^a-z]/', '', strtolower((string)($d['frete_servico'] ?? '')));
 
 $c = loja_carregar_itens($pdo, $d['carrinho'] ?? []);
 if (!$c['ok']) saida(['ok' => false, 'erro' => $c['erro']], 409);
@@ -52,11 +54,12 @@ if ($codigo !== '') {
     }
 }
 
-$t = loja_calcular_totais($pdo, $c['subtotal'], $metodo, $cupom_val);
+$qtd_pecas = array_sum(array_column($c['itens'], 'qtd'));
+$t = loja_calcular_totais($pdo, $c['subtotal'], $metodo, $cupom_val, $cep, $qtd_pecas, $servico);
 if ($t['erro'] !== '') {   // cupom que zeraria o pedido: recalcula sem ele
     $cupom_erro = $t['erro'];
     $cupom_val  = null;
-    $t = loja_calcular_totais($pdo, $c['subtotal'], $metodo, null);
+    $t = loja_calcular_totais($pdo, $c['subtotal'], $metodo, null, $cep, $qtd_pecas, $servico);
 }
 
 saida([
@@ -67,6 +70,11 @@ saida([
     'desconto_cupom' => $t['desconto_cupom'],
     'desconto_pix'   => $t['desconto_pix'],
     'frete'       => $t['frete'],
+    'frete_definido' => $t['frete_definido'],
+    'frete_erro'  => $t['frete_erro'],
+    'frete_servico' => $t['frete_servico'],
+    'frete_nome'  => $t['frete_nome'],
+    'opcoes_frete'=> $t['opcoes_frete'],
     'frete_motivo'=> $t['frete_motivo'],
     'frete_falta' => $t['frete_falta'],
     'prazo_dias'  => $t['prazo_dias'],

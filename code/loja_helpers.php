@@ -11,9 +11,11 @@
  *   - cupom             percentual ou fixo (nunca maior que o subtotal)
  *   = base
  *   - desconto PIX 5%   sobre a base (não incide sobre o frete)
- *   + frete             fixo (se ativo) ou grátis, conforme configurações do admin
+ *   + frete             cotado por CEP (frete_helpers.php): Correios PAC/SEDEX, Jadlog, fixo ou grátis
  *   = total
  */
+
+require_once __DIR__ . '/frete_helpers.php';
 
 const LOJA_DESCONTO_PIX = 0.05;
 
@@ -46,6 +48,8 @@ function loja_garantir_schema(PDO $pdo): void
         if (!in_array('frete', $cols, true))          $pdo->exec("ALTER TABLE pedidos ADD COLUMN frete DECIMAL(10,2) NOT NULL DEFAULT 0");
         if (!in_array('cupom_codigo', $cols, true))   $pdo->exec("ALTER TABLE pedidos ADD COLUMN cupom_codigo VARCHAR(50) NULL");
         if (!in_array('desconto_cupom', $cols, true)) $pdo->exec("ALTER TABLE pedidos ADD COLUMN desconto_cupom DECIMAL(10,2) NOT NULL DEFAULT 0");
+        if (!in_array('frete_servico', $cols, true))  $pdo->exec("ALTER TABLE pedidos ADD COLUMN frete_servico VARCHAR(30) NULL");
+        if (!in_array('frete_prazo', $cols, true))    $pdo->exec("ALTER TABLE pedidos ADD COLUMN frete_prazo INT NULL");
     } catch (Throwable $e) {
         error_log('[LOJA SCHEMA] ' . $e->getMessage() . ' — rode code/migrations/2026_10_15_frete_cupom.sql manualmente');
     }
@@ -121,8 +125,13 @@ function cupom_liberar(PDO $pdo, string $codigo): void
 /**
  * Calcula todos os valores do pedido.
  * @param array|null $cupom_validado  retorno de cupom_validar() (ou null sem cupom)
+ * @param string $cep        CEP de entrega (sem ele o frete fica "não definido" e o total sai sem frete)
+ * @param int    $qtd_itens  total de peças (define o peso)
+ * @param string $servico    id da opção escolhida (pac|sedex|jadlog|fixo|gratis). Vazio/inválido → a mais barata;
+ *                           quem cobra deve conferir que 'frete_servico' do retorno é o que o cliente pediu.
  */
-function loja_calcular_totais(PDO $pdo, float $subtotal, string $metodo, ?array $cupom_validado = null): array
+function loja_calcular_totais(PDO $pdo, float $subtotal, string $metodo, ?array $cupom_validado = null,
+                              string $cep = '', int $qtd_itens = 0, string $servico = ''): array
 {
     $subtotal = round($subtotal, 2);
 
@@ -130,18 +139,17 @@ function loja_calcular_totais(PDO $pdo, float $subtotal, string $metodo, ?array 
     $base       = round($subtotal - $desc_cupom, 2);
     $desc_pix   = ($metodo === 'pix') ? round($base * LOJA_DESCONTO_PIX, 2) : 0.0;
 
-    // Frete — sem integração de transportadora: valor fixo (se ativo) ou grátis
-    $fixo_ativo   = loja_cfg($pdo, 'frete_frete_fixo_ativo', '0') === '1';
-    $fixo_valor   = max(0.0, (float)loja_cfg($pdo, 'frete_frete_fixo_valor', '15'));
+    // Frete cotado no servidor pelo CEP
+    $cot = frete_cotar($pdo, $cep, $qtd_itens, $base);
+    $sel = null;
+    if ($cot['ok']) {
+        foreach ($cot['opcoes'] as $o) if ($o['id'] === $servico) { $sel = $o; break; }
+        if ($sel === null) $sel = $cot['opcoes'][0];   // mais barata
+    }
+    $frete = $sel ? (float)$sel['preco'] : 0.0;
+
     $gratis_ativo = loja_cfg($pdo, 'frete_frete_gratis_ativo', '1') === '1';
     $gratis_min   = (float)loja_cfg($pdo, 'frete_frete_gratis_minimo', '199');
-
-    $frete  = $fixo_ativo ? $fixo_valor : 0.0;
-    $motivo = $frete > 0 ? 'fixo' : 'gratis';
-    if ($frete > 0 && $gratis_ativo && $base >= $gratis_min) {
-        $frete  = 0.0;
-        $motivo = 'gratis_valor_minimo';
-    }
 
     $total = round($base - $desc_pix + $frete, 2);
 
@@ -150,10 +158,16 @@ function loja_calcular_totais(PDO $pdo, float $subtotal, string $metodo, ?array 
         'desconto_cupom' => $desc_cupom,
         'desconto_pix'   => $desc_pix,
         'desconto_total' => round($desc_cupom + $desc_pix, 2),
+        'frete_definido' => $sel !== null,
+        'frete_erro'     => $cot['ok'] ? '' : $cot['erro'],
         'frete'          => round($frete, 2),
-        'frete_motivo'   => $motivo,
-        'frete_falta'    => ($fixo_ativo && $gratis_ativo && $frete > 0) ? round(max(0, $gratis_min - $base), 2) : 0.0,
-        'prazo_dias'     => (int)loja_cfg($pdo, 'frete_prazo_padrao', '5'),
+        'frete_servico'  => $sel['id'] ?? '',
+        'frete_nome'     => $sel['nome'] ?? '',
+        'frete_transportadora' => $sel['transportadora'] ?? '',
+        'frete_motivo'   => $sel ? ($sel['gratis'] ? 'gratis' : 'pago') : 'indefinido',
+        'opcoes_frete'   => $cot['opcoes'],
+        'frete_falta'    => ($sel && $gratis_ativo && !$sel['gratis'] && $base < $gratis_min) ? round($gratis_min - $base, 2) : 0.0,
+        'prazo_dias'     => $sel ? (int)$sel['prazo'] : 0,
         'total'          => $total,
         'erro'           => $total > 0 ? '' : 'O cupom não pode zerar o valor do pedido.',
     ];

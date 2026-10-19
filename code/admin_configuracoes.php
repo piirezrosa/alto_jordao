@@ -2,6 +2,7 @@
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
 require_once 'financeiro_helpers.php';
+require_once 'frete_helpers.php';
 
 // Apenas superadmin acessa configurações do sistema
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin'])) {
@@ -601,17 +602,27 @@ $pagina_atual = 'configuracoes';
                             <input type="text" name="cep_origem" value="<?= cfg($pdo,'frete_cep_origem') ?>" placeholder="00000-000">
                         </div>
                         <div class="input-group">
-                            <label>Prazo Padrão (dias úteis)</label>
+                            <label>Prazo do Frete Fixo (dias úteis)</label>
                             <input type="number" name="prazo_padrao" value="<?= cfg($pdo,'frete_prazo_padrao','5') ?>" min="1">
                         </div>
                     </div>
 
-                    <div class="config-section-title">Transportadoras</div>
+                    <div class="config-section-title">Formas de entrega oferecidas no checkout</div>
+                    <?php
+                        $uf_origem_cfg = frete_uf_do_cep((string)cfg($pdo,'frete_cep_origem',''));
+                    ?>
+                    <?php if (!$uf_origem_cfg): ?>
+                    <div style="background:#fff8e1;border:1px solid #ffe082;color:#8a6100;border-radius:12px;padding:12px 14px;font-size:13px;margin-bottom:14px;">
+                        ⚠ Informe um <strong>CEP de origem</strong> válido acima. Sem ele, todo pedido é cotado como "outras regiões" (a zona mais cara).
+                    </div>
+                    <?php else: ?>
+                    <p style="font-size:12px;color:#888;margin:0 0 12px;">Origem: <strong><?= $uf_origem_cfg ?></strong>. O frete é calculado no servidor pelo CEP do cliente, usando a tabela abaixo.</p>
+                    <?php endif; ?>
 
                     <div class="toggle-row">
                         <div class="toggle-info">
-                            <strong>Correios (PAC / SEDEX)</strong>
-                            <span>Cálculo automático via API dos Correios</span>
+                            <strong>Correios (PAC e SEDEX)</strong>
+                            <span>Oferece as duas opções, com preço da tabela abaixo</span>
                         </div>
                         <label class="toggle-switch">
                             <input type="hidden" name="correios_ativo" value="0">
@@ -623,7 +634,7 @@ $pagina_atual = 'configuracoes';
                     <div class="toggle-row">
                         <div class="toggle-info">
                             <strong>Jadlog</strong>
-                            <span>Entrega expressa para capitais</span>
+                            <span>Oferece a opção Jadlog, com preço da tabela abaixo</span>
                         </div>
                         <label class="toggle-switch">
                             <input type="hidden" name="jadlog_ativo" value="0">
@@ -635,7 +646,7 @@ $pagina_atual = 'configuracoes';
                     <div class="toggle-row">
                         <div class="toggle-info">
                             <strong>Frete Fixo</strong>
-                            <span>Usa um valor fixo para todos os pedidos</span>
+                            <span>Adiciona uma opção com valor fixo, para qualquer CEP</span>
                         </div>
                         <label class="toggle-switch">
                             <input type="hidden" name="frete_fixo_ativo" value="0">
@@ -647,13 +658,49 @@ $pagina_atual = 'configuracoes';
                     <div class="field-group">
                         <div class="input-group">
                             <label>Valor do Frete Fixo (R$)</label>
-                            <input type="number" step="0.01" name="frete_fixo_valor" value="<?= cfg($pdo,'frete_frete_fixo_valor','15') ?>">
+                            <input type="number" step="0.01" min="0" name="frete_fixo_valor" value="<?= cfg($pdo,'frete_frete_fixo_valor','15') ?>">
                         </div>
+                        <div class="input-group">
+                            <label>Peso médio por peça (kg)</label>
+                            <input type="number" step="0.01" min="0.05" name="peso_item_kg" value="<?= cfg($pdo,'frete_peso_item_kg', (string)FRETE_PESO_PADRAO_KG) ?>">
+                            <small>Peso do pedido = peças × este valor (mínimo 0,3 kg).</small>
+                        </div>
+                    </div>
+                    <div class="field-group">
                         <div class="input-group">
                             <label>Código de Rastreio URL</label>
                             <input type="text" name="rastreio_url" value="<?= cfg($pdo,'frete_rastreio_url','https://rastreamento.correios.com.br') ?>" placeholder="URL do rastreamento">
                         </div>
                     </div>
+
+                    <div class="config-section-title">Tabela de preços (valores de exemplo — ajuste aos seus contratos)</div>
+                    <p style="font-size:12px;color:#888;margin:0 0 10px;">
+                        Preço = <em>base</em> (até 1 kg) + <em>adicional</em> × (kg do pedido arredondado para cima − 1).
+                        Zonas: <strong>1</strong> mesmo estado da origem · <strong>2</strong> mesma região do país · <strong>3</strong> demais regiões.
+                        Frete grátis, quando ativo, zera só a opção mais barata.
+                    </p>
+                    <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead><tr style="text-align:left;font-size:11px;text-transform:uppercase;color:#888;">
+                            <th style="padding:6px;">Serviço</th><th style="padding:6px;">Zona</th>
+                            <th style="padding:6px;">Base (R$)</th><th style="padding:6px;">+ por kg extra (R$)</th><th style="padding:6px;">Prazo (dias úteis)</th>
+                        </tr></thead>
+                        <tbody>
+                        <?php foreach (FRETE_SERVICOS as $sid => $sv): foreach ([1,2,3] as $z): $pd = FRETE_TABELA_PADRAO[$sid][$z]; ?>
+                            <tr style="border-top:1px solid #eee;">
+                                <td style="padding:6px;font-weight:700;"><?= htmlspecialchars($sv['nome']) ?></td>
+                                <td style="padding:6px;"><?= $z ?></td>
+                                <td style="padding:6px;"><input type="number" step="0.01" min="0" style="width:100px;" name="tab_<?= $sid ?>_z<?= $z ?>_base" value="<?= htmlspecialchars(cfg($pdo,"frete_tab_{$sid}_z{$z}_base",(string)$pd[0])) ?>"></td>
+                                <td style="padding:6px;"><input type="number" step="0.01" min="0" style="width:100px;" name="tab_<?= $sid ?>_z<?= $z ?>_kg" value="<?= htmlspecialchars(cfg($pdo,"frete_tab_{$sid}_z{$z}_kg",(string)$pd[1])) ?>"></td>
+                                <td style="padding:6px;"><input type="number" step="1" min="1" style="width:80px;" name="tab_<?= $sid ?>_z<?= $z ?>_prazo" value="<?= htmlspecialchars(cfg($pdo,"frete_tab_{$sid}_z{$z}_prazo",(string)$pd[2])) ?>"></td>
+                            </tr>
+                        <?php endforeach; endforeach; ?>
+                        </tbody>
+                    </table>
+                    </div>
+                    <p style="font-size:11px;color:#888;margin-top:10px;">
+                        Quer o preço oficial? Isso exige contrato/credenciais dos Correios ou da Jadlog (API). Esta tabela é a estimativa própria da loja.
+                    </p>
 
                     <div class="save-bar">
                         <button type="submit" class="btn-admin-primary">💾 Salvar Configurações de Frete</button>

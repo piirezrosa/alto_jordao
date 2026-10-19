@@ -63,6 +63,7 @@ $token_ps  = (string)($dados['token_ps'] ?? '');
 $issuer_id = (string)($dados['issuer_id'] ?? '');
 $pm_id     = (string)($dados['payment_method_id'] ?? '');
 $cupom_codigo = strtoupper(trim((string)($dados['cupom'] ?? '')));
+$frete_servico_pedido = preg_replace('/[^a-z]/', '', strtolower((string)($dados['frete_servico'] ?? '')));
 
 if (strlen($cpf) !== 11)  responder(['sucesso' => false, 'erro' => 'CPF inválido.'], 422);
 if (strlen($cep) !== 8 || $rua === '' || $numero === '' || $cidade === '') {
@@ -164,7 +165,13 @@ try {
     }
 
     // Mesma função que gerou o resumo exibido ao cliente
-    $t = loja_calcular_totais($pdo, $subtotal, $metodo, $cupom_val);
+    $qtd_pecas = 0; foreach ($itens_validados as $it) $qtd_pecas += (int)$it['qtd'];
+    $t = loja_calcular_totais($pdo, $subtotal, $metodo, $cupom_val, $cep, $qtd_pecas, $frete_servico_pedido);
+    if (!$t['frete_definido']) throw new RuntimeException($t['frete_erro'] ?: 'Não foi possível calcular o frete.');
+    // O cliente precisa ter escolhido uma opção que o servidor realmente oferece para este CEP
+    if ($frete_servico_pedido === '' || $t['frete_servico'] !== $frete_servico_pedido) {
+        throw new RuntimeException('Escolha uma opção de entrega válida para o seu CEP.');
+    }
     if ($t['erro'] !== '' || $t['total'] <= 0) throw new RuntimeException($t['erro'] ?: 'Total do pedido inválido.');
 
     $desconto       = $t['desconto_total'];   // cupom + PIX (relatórios somam esta coluna)
@@ -190,12 +197,12 @@ try {
 
     $pdo->prepare("
         INSERT INTO pedidos
-            (usuario_id, status, total, subtotal, desconto, desconto_cupom, frete, cupom_codigo, forma_pagamento,
+            (usuario_id, status, total, subtotal, desconto, desconto_cupom, frete, frete_servico, frete_prazo, transportadora, cupom_codigo, forma_pagamento,
              end_cep, end_rua, end_numero, end_bairro, end_cidade, end_estado,
              status_pagamento, data_pedido)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pendente',NOW())
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pendente',NOW())
     ")->execute([
-        $usuario_id, 'pendente', $total, $subtotal, $desconto, $desconto_cupom, $frete, $cupom_gravar, $metodo,
+        $usuario_id, 'pendente', $total, $subtotal, $desconto, $desconto_cupom, $frete, $t['frete_servico'], $t['prazo_dias'], $t['frete_transportadora'], $cupom_gravar, $metodo,
         $cep, $rua, $numero, $bairro, $cidade, $estado,
     ]);
     $pedido_id = (int)$pdo->lastInsertId();

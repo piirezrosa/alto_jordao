@@ -121,6 +121,13 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
         .cupom-aplicado { display:none; align-items:center; justify-content:space-between; gap:10px; background:#e8f5e9; color:#2e7d32; border-radius:12px; padding:11px 14px; font-size:12px; font-weight:800; }
         .cupom-aplicado button { background:none; border:none; color:#2e7d32; font-size:11px; font-weight:800; text-decoration:underline; cursor:pointer; }
         .linha-desconto { color:#2e7d32; font-weight:700; }
+        .opcoes-frete { margin:4px 0 12px; display:flex; flex-direction:column; gap:6px; }
+        .opcao-frete { display:flex; align-items:center; gap:10px; border:1px solid #e5e5e5; border-radius:10px; padding:9px 12px; cursor:pointer; font-size:12px; }
+        .opcao-frete.sel { border-color:#000; background:#fafafa; }
+        .opcao-frete .of-nome { flex:1; font-weight:700; }
+        .opcao-frete .of-prazo { color:#888; font-size:11px; }
+        .opcao-frete .of-preco { font-weight:800; }
+        .opcao-frete .of-preco.gratis { color:#27ae60; }
         .dica-frete { background:#fff8e1; color:#b45309; padding:8px 12px; border-radius:8px; font-size:12px; font-weight:700; margin-bottom:10px; display:none; }
         .resumo-erro { background:#fff0f0; color:#c62828; border-radius:10px; padding:10px 12px; font-size:12px; font-weight:700; margin-top:14px; display:none; }
 
@@ -383,6 +390,7 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
                 <span style="color:#888;">Frete</span>
                 <span id="valorFrete" style="font-weight:800;">—</span>
             </div>
+            <div id="opcoesFrete" class="opcoes-frete"></div>
             <div id="prazoFrete" style="font-size:11px; color:#999; margin:-4px 0 10px;"></div>
             <div class="dica-frete" id="dicaFrete"></div>
             <div class="desconto-pix" id="descontoPix">
@@ -437,6 +445,8 @@ document.addEventListener('DOMContentLoaded', () => {
 let cupomAplicado = '';
 let totalFinal    = 0;
 let calcSeq       = 0;
+let freteServico  = '';      // opção de entrega escolhida (o servidor confere)
+let freteDefinido = false;   // true quando o servidor conseguiu cotar o frete para o CEP
 
 const fmtBRL = v => 'R$ ' + Number(v).toLocaleString('pt-br', {minimumFractionDigits:2, maximumFractionDigits:2});
 
@@ -464,6 +474,8 @@ async function atualizarTotal() {
                 carrinho: carrinhoGlobal.map(i => ({ id: i.id, qtd: i.qtd || 1 })),
                 cupom:    cupomAplicado,
                 metodo:   metodoPagamento,
+                cep:      document.getElementById('campo-cep').value.replace(/\D/g,''),
+                frete_servico: freteServico,
             }),
         });
         const r = await res.json();
@@ -521,13 +533,21 @@ function renderizarTotais(r) {
         linhaCupom.style.display = 'none';
     }
 
+    freteDefinido = !!r.frete_definido;
+    freteServico  = r.frete_servico || '';
+    renderizarOpcoesFrete(r);
+
     const frete = $('valorFrete');
-    if (r.frete > 0) {
+    if (!r.frete_definido) {
+        frete.textContent = 'Informe o CEP'; frete.style.color = '#b45309'; frete.style.fontSize = '11px';
+    } else if (r.frete > 0) {
         frete.textContent = fmtBRL(r.frete); frete.style.color = '#000'; frete.style.fontSize = '14px';
     } else {
         frete.textContent = 'GRÁTIS'; frete.style.color = '#27ae60'; frete.style.fontSize = '11px';
     }
-    $('prazoFrete').textContent = r.prazo_dias ? 'Entrega em até ' + r.prazo_dias + ' dias úteis' : '';
+    $('prazoFrete').textContent = r.frete_definido
+        ? (r.prazo_dias ? 'Entrega em até ' + r.prazo_dias + ' dias úteis' : '')
+        : (r.frete_erro || '');
 
     const dica = $('dicaFrete');
     if (r.frete_falta > 0) {
@@ -551,6 +571,26 @@ function renderizarTotais(r) {
         const n = (document.getElementById('cardNumber')?.value || '').replace(/\s/g, '');
         if (n.length >= 6) carregarParcelas(n);
     }
+}
+
+// Opções de entrega vindas do servidor (preço e prazo não são calculados aqui)
+function renderizarOpcoesFrete(r) {
+    const box = document.getElementById('opcoesFrete');
+    box.innerHTML = '';
+    if (!r.frete_definido || !Array.isArray(r.opcoes_frete) || r.opcoes_frete.length < 2) return;   // 1 opção só: já aparece na linha de Frete
+    r.opcoes_frete.forEach(o => {
+        const lab = document.createElement('label');
+        lab.className = 'opcao-frete' + (o.id === r.frete_servico ? ' sel' : '');
+        const rd = document.createElement('input');
+        rd.type = 'radio'; rd.name = 'opcaoFrete'; rd.value = o.id; rd.checked = (o.id === r.frete_servico);
+        rd.addEventListener('change', () => { freteServico = o.id; atualizarTotal(); });
+        const nome = document.createElement('span'); nome.className = 'of-nome'; nome.textContent = o.nome;
+        const prazo = document.createElement('span'); prazo.className = 'of-prazo'; prazo.textContent = 'até ' + o.prazo + ' d.úteis';
+        const preco = document.createElement('span'); preco.className = 'of-preco' + (o.preco > 0 ? '' : ' gratis');
+        preco.textContent = o.preco > 0 ? fmtBRL(o.preco) : 'GRÁTIS';
+        lab.append(rd, nome, prazo, preco);
+        box.appendChild(lab);
+    });
 }
 
 // ── CUPOM ─────────────────────────────────────────────────
@@ -629,6 +669,7 @@ function setupMascaras() {
         let v = this.value.replace(/\D/g,'');
         if (v.length > 5) v = v.slice(0,5) + '-' + v.slice(5,8);
         this.value = v;
+        if (v.replace(/\D/g,'').length === 8) atualizarTotal();   // recota o frete assim que o CEP fica completo
     });
 }
 
@@ -759,6 +800,7 @@ function validar() {
     if (!rua)            return 'Preencha o endereço.';
     if (!numero)         return 'Preencha o número do endereço.';
     if (!cidade)         return 'Preencha a cidade.';
+    if (!freteDefinido || !freteServico) return 'Não foi possível calcular o frete para este CEP. Confira o CEP.';
 
     if (metodoPagamento === 'cartao') {
         const cardNum = document.getElementById('cardNumber').value.replace(/\s/g,'');
@@ -804,6 +846,7 @@ async function finalizarPedido() {
         carrinho:  carrinhoGlobal,
         parcelas:  parseInt(document.getElementById('selectParcelas')?.value || '1'),
         cupom:     cupomAplicado,
+        frete_servico: freteServico,
     };
 
     // Gera tokens do cartão nos dois gateways simultaneamente

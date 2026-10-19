@@ -168,7 +168,7 @@ $pagina_atual = 'dashboard';
                 <span class="card-title">Receita — Últimos 30 dias</span>
                 <a href="admin_vendas.php" class="card-link">Ver tudo →</a>
             </div>
-            <canvas id="chartReceita" height="110"></canvas>
+            <canvas id="chartReceita" height="190"></canvas>
         </div>
 
         <div class="admin-card">

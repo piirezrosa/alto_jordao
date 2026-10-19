@@ -2,6 +2,7 @@
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
 require_once 'financeiro_helpers.php';
+require_once 'pedido_helpers.php';
 
 // teste git
 
@@ -18,11 +19,40 @@ if (isset($_POST['atualizar_status'])) {
     $frete_custo = ($frete_custo !== '' && is_numeric($frete_custo) && (float)$frete_custo >= 0 && (float)$frete_custo <= 100000)
         ? round((float)$frete_custo, 2) : null;
 
-    $stmt = $pdo->prepare("UPDATE pedidos SET status = ?, codigo_rastreio = ?, transportadora = ?, frete_custo = ? WHERE id = ?");
-    $stmt->execute([$_POST['status'], $_POST['codigo_rastreio'] ?? null, $_POST['transportadora'] ?? null, $frete_custo, $_POST['pedido_id']]);
-    $log = $pdo->prepare("INSERT INTO logs_sistema (usuario_id, acao, tabela, registro_id, detalhes, ip) VALUES (?,?,?,?,?,?)");
-    $log->execute([$_SESSION['usuario_id'] ?? null, 'pedido_status_atualizado', 'pedidos', $_POST['pedido_id'], 'Novo status: '.$_POST['status'], $_SERVER['REMOTE_ADDR']]);
-    header("Location: admin_pedidos.php?msg=atualizado"); exit();
+    $pid       = (int)($_POST['pedido_id'] ?? 0);
+    $novo      = (string)($_POST['status'] ?? '');
+    $validos   = ['pendente','pago','em_separacao','enviado','entregue','cancelado'];
+    $msg       = 'atualizado';
+
+    $atual = $pdo->prepare("SELECT status FROM pedidos WHERE id = ?");
+    $atual->execute([$pid]);
+    $status_atual = $atual->fetchColumn();
+
+    if ($status_atual === false || !in_array($novo, $validos, true)) {
+        $msg = 'erro_pedido';
+    } elseif ($status_atual === 'cancelado' && $novo !== 'cancelado') {
+        // Pedido cancelado já devolveu estoque/cupom; reativar deixaria o estoque inconsistente.
+        $msg = 'erro_reativar';
+    } elseif ($novo === 'cancelado' && $status_atual !== 'cancelado') {
+        if (!in_array($status_atual, ['pendente','pago','em_separacao'], true)) {
+            $msg = 'erro_cancelar';   // já saiu para entrega: usar o fluxo de devolução
+        } elseif (pedido_cancelar_devolvendo_estoque($pdo, $pid, 'cancelado_manual_admin_' . (int)($_SESSION['usuario_id'] ?? 0), ['pendente','pago','em_separacao'])) {
+            $msg = ($status_atual === 'pendente') ? 'cancelado' : 'cancelado_reembolsar';
+            pedido_log($pdo, $pid, 'pedido_cancelado_manual',
+                "de: $status_atual | usuario: " . (int)($_SESSION['usuario_id'] ?? 0) . ($status_atual !== 'pendente' ? ' | REEMBOLSAR CLIENTE NO GATEWAY' : ''));
+        } else {
+            $msg = 'erro_cancelar';   // mudou de status em paralelo
+        }
+        // rastreio/transportadora/custo de frete continuam editáveis
+        $pdo->prepare("UPDATE pedidos SET codigo_rastreio = ?, transportadora = ?, frete_custo = ? WHERE id = ?")
+            ->execute([$_POST['codigo_rastreio'] ?? null, $_POST['transportadora'] ?? null, $frete_custo, $pid]);
+    } else {
+        $stmt = $pdo->prepare("UPDATE pedidos SET status = ?, codigo_rastreio = ?, transportadora = ?, frete_custo = ? WHERE id = ?");
+        $stmt->execute([$novo, $_POST['codigo_rastreio'] ?? null, $_POST['transportadora'] ?? null, $frete_custo, $pid]);
+        $log = $pdo->prepare("INSERT INTO logs_sistema (usuario_id, acao, tabela, registro_id, detalhes, ip) VALUES (?,?,?,?,?,?)");
+        $log->execute([$_SESSION['usuario_id'] ?? null, 'pedido_status_atualizado', 'pedidos', $pid, 'Novo status: '.$novo, $_SERVER['REMOTE_ADDR']]);
+    }
+    header("Location: admin_pedidos.php?msg=" . $msg); exit();
 }
 
 // ── FILTROS ───────────────────────────────────
@@ -357,7 +387,23 @@ $pagina_atual = 'pedidos';
     </div>
 
     <?php if(isset($_GET['msg'])): ?>
+    <?php
+        $m = $_GET['msg'];
+        $erros = [
+            'erro_reativar' => 'Pedido cancelado não pode ser reativado (o estoque já foi devolvido). Peça ao cliente para fazer um novo pedido.',
+            'erro_cancelar' => 'Só é possível cancelar pedidos pendentes, pagos ou em separação. Pedidos enviados/entregues seguem o fluxo de devolução.',
+            'erro_pedido'   => 'Pedido ou status inválido.',
+        ];
+    ?>
+    <?php if (isset($erros[$m])): ?>
+        <div class="msg-ok" style="background:#fdecea;color:#c62828;border-color:#f5c6cb;">⚠ <?= $erros[$m] ?></div>
+    <?php elseif ($m === 'cancelado_reembolsar'): ?>
+        <div class="msg-ok" style="background:#fff8e1;color:#8a6100;border-color:#ffe082;">✓ Pedido cancelado, estoque e cupom devolvidos. <strong>Atenção:</strong> o pedido já estava pago — faça o reembolso ao cliente no painel do gateway.</div>
+    <?php elseif ($m === 'cancelado'): ?>
+        <div class="msg-ok">✓ Pedido cancelado; estoque e cupom devolvidos.</div>
+    <?php else: ?>
     <div class="msg-ok">✓ Status do pedido atualizado com sucesso!</div>
+    <?php endif; ?>
     <?php endif; ?>
 
     <!-- TABS DE STATUS -->

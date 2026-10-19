@@ -17,6 +17,7 @@
 
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'financeiro_helpers.php';
 require_once 'CriptografiaAES.php';
 
 // Proteção de acesso
@@ -169,6 +170,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['gerar'])) {
 // ── FUNÇÃO DE COLETA DE DADOS ─────────────────────────────
 function coletarDados(PDO $pdo, string $tipo, string $ini, string $fim): array
 {
+    fin_garantir_schema($pdo);
+    $fat = "'" . implode("','", FIN_STATUS_FATURADO) . "'";   // só vendas efetivadas (pago → entregue)
     switch ($tipo) {
 
         case 'financeiro_mensal':
@@ -185,7 +188,7 @@ function coletarDados(PDO $pdo, string $tipo, string $ini, string $fim): array
                     COUNT(CASE WHEN forma_pagamento='cartao' THEN 1 END) as pedidos_cartao,
                     COUNT(CASE WHEN forma_pagamento='boleto' THEN 1 END) as pedidos_boleto
                 FROM pedidos
-                WHERE status NOT IN ('cancelado')
+                WHERE status IN ($fat)
                   AND DATE(data_pedido) BETWEEN ? AND ?
             ");
             $resumo->execute([$ini, $fim]);
@@ -195,7 +198,7 @@ function coletarDados(PDO $pdo, string $tipo, string $ini, string $fim): array
                        COUNT(*) as pedidos,
                        SUM(total) as receita
                 FROM pedidos
-                WHERE status NOT IN ('cancelado')
+                WHERE status IN ($fat)
                   AND DATE(data_pedido) BETWEEN ? AND ?
                 GROUP BY dia ORDER BY dia
             ");
@@ -208,7 +211,7 @@ function coletarDados(PDO $pdo, string $tipo, string $ini, string $fim): array
                 FROM itens_pedido ip
                 JOIN pedidos ped ON ped.id = ip.pedido_id
                 JOIN produtos p  ON p.id  = ip.produto_id
-                WHERE ped.status NOT IN ('cancelado')
+                WHERE ped.status IN ($fat)
                   AND DATE(ped.data_pedido) BETWEEN ? AND ?
                 GROUP BY ip.produto_id
                 ORDER BY receita DESC
@@ -218,6 +221,7 @@ function coletarDados(PDO $pdo, string $tipo, string $ini, string $fim): array
 
             return [
                 'resumo'       => $resumo->fetch(PDO::FETCH_ASSOC),
+                'dre'          => fin_resumo($pdo, $ini, $fim),   // lucro realista (taxas, impostos, frete, despesas fixas)
                 'diario'       => $diario->fetchAll(PDO::FETCH_ASSOC),
                 'top_produtos' => $top_produtos->fetchAll(PDO::FETCH_ASSOC),
             ];
@@ -227,11 +231,11 @@ function coletarDados(PDO $pdo, string $tipo, string $ini, string $fim): array
                 SELECT p.nome, p.preco, p.custo,
                        SUM(ip.quantidade) as vendido,
                        SUM(ip.quantidade * ip.preco_unitario) as receita,
-                       SUM(ip.quantidade * COALESCE(p.custo,0)) as custo_total
+                       SUM(ip.quantidade * COALESCE(ip.custo_unitario, p.custo, 0)) as custo_total
                 FROM produtos p
                 JOIN itens_pedido ip ON ip.produto_id = p.id
                 JOIN pedidos ped ON ped.id = ip.pedido_id
-                WHERE ped.status NOT IN ('cancelado')
+                WHERE ped.status IN ($fat)
                   AND DATE(ped.data_pedido) BETWEEN ? AND ?
                 GROUP BY p.id
                 HAVING vendido > 0
@@ -248,7 +252,8 @@ function coletarDados(PDO $pdo, string $tipo, string $ini, string $fim): array
                     : 0;
             }
 
-            return ['produtos' => $rows];
+            // 'produtos' = lucro BRUTO por produto; 'dre' = lucro líquido real do período
+            return ['produtos' => $rows, 'dre' => fin_resumo($pdo, $ini, $fim)];
 
         case 'produtos_desempenho':
             $stmt = $pdo->prepare("
@@ -277,7 +282,7 @@ function coletarDados(PDO $pdo, string $tipo, string $ini, string $fim): array
                        MAX(ped.data_pedido) as ultimo_pedido
                 FROM usuarios u
                 LEFT JOIN pedidos ped ON ped.usuario_id = u.id
-                    AND ped.status NOT IN ('cancelado')
+                    AND ped.status IN ($fat)
                     AND DATE(ped.data_pedido) BETWEEN ? AND ?
                 WHERE u.nivel = 'cliente'
                 GROUP BY u.id
@@ -432,7 +437,7 @@ $pagina_atual = 'relatorio.criptografado';
                         <option value="">Selecione...</option>
                         <option value="financeiro_mensal">💰 Financeiro Mensal</option>
                         <option value="financeiro_anual">📅 Financeiro Anual</option>
-                        <option value="margem_lucro">📈 Margem de Lucro</option>
+                        <option value="margem_lucro">📈 Margem de Lucro (bruta + DRE)</option>
                         <option value="produtos_desempenho">📦 Desempenho de Produtos</option>
                         <option value="clientes">👥 Base de Clientes</option>
                     </select>

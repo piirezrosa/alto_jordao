@@ -266,6 +266,39 @@ $info_arquivo = empty($erro_fatal) ? CriptografiaAES::infoArquivo(file_get_conte
         </div>
         <?php endif; ?>
 
+        <!-- DRE (lucro realista) -->
+        <?php if(!empty($dados['dre']) && is_array($dados['dre']) && isset($dados['dre']['lucro_liquido'])): $d = $dados['dre'];
+            $brl = fn($v) => 'R$ ' . number_format((float)$v, 2, ',', '.');
+        ?>
+        <div class="sec-titulo">DRE — Resultado do Período</div>
+        <table class="tbl">
+            <tbody>
+            <?php foreach ([
+                ['(+) Receita', $d['receita'], false],
+                ['(−) Devoluções', $d['devolucoes'], false],
+                ['(−) Custo das mercadorias', ($d['cmv'] ?? 0) - ($d['cmv_recuperado'] ?? 0), false],
+                ['(−) Taxas do gateway', $d['taxas_gateway'], false],
+                ['(−) Impostos', $d['impostos'], false],
+                ['(−) Frete pago', $d['frete_custo'], false],
+                ['(−) Embalagem', $d['embalagem'], false],
+                ['(=) Margem de contribuição', $d['margem_contribuicao'], true],
+                ['(−) Despesas fixas', $d['despesas_fixas'], false],
+                ['(=) Lucro líquido', $d['lucro_liquido'], true],
+            ] as [$rot, $v, $forte]): ?>
+            <tr style="<?= $forte ? 'font-weight:900;background:#f5f5f5;' : '' ?>">
+                <td><?= $rot ?></td>
+                <td style="text-align:right;<?= $forte ? 'color:' . ($v >= 0 ? '#2e7d32' : '#c62828') . ';' : '' ?>"><?= $brl($v) ?></td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <p style="font-size:11px;color:#888;margin-top:8px;">
+            Ponto de equilíbrio: <?= isset($d['ponto_equilibrio']) && $d['ponto_equilibrio'] !== null ? $brl($d['ponto_equilibrio']) : 'indisponível' ?>
+            <?php if (!empty($d['itens_sem_custo'])): ?> · ⚠ <?= (int)$d['itens_sem_custo'] ?> item(ns) sem custo cadastrado<?php endif; ?>
+            <?php if (!empty($d['n_frete_estimado'])): ?> · ⚠ <?= (int)$d['n_frete_estimado'] ?> pedido(s) com frete estimado<?php endif; ?>
+        </p>
+        <?php endif; ?>
+
         <!-- TOP PRODUTOS -->
         <?php if(!empty($dados['top_produtos'])): ?>
         <div class="sec-titulo">Top 10 Produtos por Receita</div>
@@ -286,7 +319,7 @@ $info_arquivo = empty($erro_fatal) ? CriptografiaAES::infoArquivo(file_get_conte
 
         <!-- MARGEM DE LUCRO -->
         <?php if(!empty($dados['produtos']) && isset($dados['produtos'][0]['margem'])): ?>
-        <div class="sec-titulo">Margem de Lucro por Produto</div>
+        <div class="sec-titulo">Margem Bruta por Produto (receita − custo)</div>
         <table class="tbl">
             <thead><tr><th>Produto</th><th>Vendido</th><th>Receita</th><th>Custo</th><th>Lucro</th><th>Margem</th></tr></thead>
             <tbody>

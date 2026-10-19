@@ -18,10 +18,12 @@ function pedido_marcar_pago(PDO $pdo, int $pedido_id, string $nota = ''): bool
 }
 
 /**
- * Cancela o pedido pendente e devolve o estoque dos itens.
- * Retorna true se cancelou agora (false se já estava pago/cancelado).
+ * Cancela o pedido, devolve o estoque dos itens e libera o cupom usado.
+ * Por padrão só cancela pedidos 'pendente' (webhooks/polling). O cancelamento manual do admin
+ * passa $de = ['pendente','pago','em_separacao'] (mercadoria ainda não saiu).
+ * Retorna true se cancelou agora (false se o status atual não está em $de, ex.: já cancelado).
  */
-function pedido_cancelar_devolvendo_estoque(PDO $pdo, int $pedido_id, string $motivo = ''): bool
+function pedido_cancelar_devolvendo_estoque(PDO $pdo, int $pedido_id, string $motivo = '', array $de = ['pendente']): bool
 {
     require_once __DIR__ . '/loja_helpers.php';
     loja_garantir_schema($pdo);   // fora de transação (ALTER TABLE faz commit implícito)
@@ -29,13 +31,17 @@ function pedido_cancelar_devolvendo_estoque(PDO $pdo, int $pedido_id, string $mo
     try {
         $pdo->beginTransaction();
 
+        // status_pagamento vem ANTES de status no SET (MySQL avalia da esquerda p/ direita):
+        // só pedido que nunca foi pago vira 'recusado'; um pago cancelado mantém 'aprovado' até o reembolso.
+        $in = implode(',', array_fill(0, count($de), '?'));
         $st = $pdo->prepare("
             UPDATE pedidos
-               SET status = 'cancelado', status_pagamento = 'recusado',
+               SET status_pagamento = CASE WHEN status = 'pendente' THEN 'recusado' ELSE status_pagamento END,
+                   status = 'cancelado',
                    observacoes = CONCAT(COALESCE(observacoes, ''), ?)
-             WHERE id = ? AND status = 'pendente'
+             WHERE id = ? AND status IN ($in)
         ");
-        $st->execute([$motivo !== '' ? " | $motivo" : '', $pedido_id]);
+        $st->execute(array_merge([$motivo !== '' ? " | $motivo" : '', $pedido_id], array_values($de)));
 
         if ($st->rowCount() !== 1) {   // já tratado por outro caminho
             $pdo->rollBack();

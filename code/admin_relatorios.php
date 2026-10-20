@@ -178,7 +178,7 @@ $pagina_atual = 'relatorios';
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=<?= time() ?>">
     <link rel="stylesheet" href="admin_style.css?v=<?= time() ?>">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         .aba-nav { display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap; }
         .aba-btn { padding:10px 22px; border-radius:50px; border:1px solid var(--border); background:var(--white); color:var(--text2); text-decoration:none; font-size:13px; font-weight:700; transition:var(--transition); }

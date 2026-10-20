@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php'; 
+require_once 'financeiro_helpers.php';
 
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
     header("Location: login.php"); exit();
@@ -9,10 +10,15 @@ if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], 
 $data_inicio = isset($_GET['data_inicio']) ? $_GET['data_inicio'] : date('Y-m-d', strtotime('-30 days'));
 $data_fim    = isset($_GET['data_fim'])    ? $_GET['data_fim']    : date('Y-m-d');
 
+// Venda efetivada = paga e em qualquer etapa posterior (separação, enviado, entregue).
+// Antes cada consulta usava UM status ('entregue' ou 'pago'), então o pedido sumia do gráfico e do
+// "mais vendido" assim que avançava no fluxo.
+$fat = "'" . implode("','", FIN_STATUS_FATURADO) . "'";
+
 try {
     $stmtPagas = $pdo->prepare("SELECT p.*, u.nome as cliente FROM pedidos p 
                                 JOIN usuarios u ON p.usuario_id = u.id 
-                                WHERE p.status = 'entregue' AND DATE(p.data_pedido) BETWEEN ? AND ? 
+                                WHERE p.status IN ($fat) AND DATE(p.data_pedido) BETWEEN ? AND ? 
                                 ORDER BY p.data_pedido DESC");
     $stmtPagas->execute([$data_inicio, $data_fim]);
     $vendasPagas = $stmtPagas->fetchAll(PDO::FETCH_ASSOC);
@@ -25,7 +31,7 @@ try {
     $vendasPendentes = $stmtPendentes->fetchAll(PDO::FETCH_ASSOC);
 
     $stmtGrafico = $pdo->prepare("SELECT DATE(data_pedido) as dia, SUM(total) as total 
-                                  FROM pedidos WHERE status = 'pago' AND DATE(data_pedido) BETWEEN ? AND ? 
+                                  FROM pedidos WHERE status IN ($fat) AND DATE(data_pedido) BETWEEN ? AND ? 
                                   GROUP BY DATE(data_pedido) ORDER BY dia ASC");
     $stmtGrafico->execute([$data_inicio, $data_fim]);
     $dadosGrafico = $stmtGrafico->fetchAll(PDO::FETCH_ASSOC);
@@ -34,17 +40,19 @@ try {
                              FROM itens_pedido it 
                              JOIN produtos p ON it.produto_id = p.id 
                              JOIN pedidos ped ON it.pedido_id = ped.id
-                             WHERE ped.status = 'pago' AND DATE(ped.data_pedido) BETWEEN ? AND ?
+                             WHERE ped.status IN ($fat) AND DATE(ped.data_pedido) BETWEEN ? AND ?
                              GROUP BY it.produto_id ORDER BY total_vendas DESC LIMIT 1");
     $stmtTop->execute([$data_inicio, $data_fim]);
     $produtoTop = $stmtTop->fetch(PDO::FETCH_ASSOC);
 
-    $stmtLow = $pdo->prepare("SELECT p.nome, IFNULL(SUM(it.quantidade), 0) as total_vendas 
-                              FROM produtos p
-                              LEFT JOIN itens_pedido it ON p.id = it.produto_id
-                              LEFT JOIN pedidos ped ON it.pedido_id = ped.id AND ped.status = 'pago'
-                              WHERE (DATE(ped.data_pedido) BETWEEN ? AND ? OR ped.id IS NULL)
-                              GROUP BY p.id ORDER BY total_vendas ASC LIMIT 1");
+    // Menos vendido entre os produtos ativos (os sem nenhuma venda no período contam 0)
+    $stmtLow = $pdo->prepare("SELECT p.nome,
+                                     COALESCE((SELECT SUM(it.quantidade) FROM itens_pedido it
+                                               JOIN pedidos ped ON ped.id = it.pedido_id
+                                               WHERE it.produto_id = p.id AND ped.status IN ($fat)
+                                                 AND DATE(ped.data_pedido) BETWEEN ? AND ?), 0) AS total_vendas
+                              FROM produtos p WHERE p.ativo = 1
+                              ORDER BY total_vendas ASC, p.nome ASC LIMIT 1");
     $stmtLow->execute([$data_inicio, $data_fim]);
     $produtoLow = $stmtLow->fetch(PDO::FETCH_ASSOC);
 
@@ -52,6 +60,7 @@ try {
     $faturamento_periodo = array_sum(array_column($vendasPagas, 'total'));
 
 } catch (PDOException $e) {
+    error_log('[ADMIN VENDAS] ' . $e->getMessage());   // antes o erro era engolido e a tela ficava vazia sem pista
     $produtoTop = $produtoLow = null;
     $vendasPagas = $vendasPendentes = $dadosGrafico = [];
     $faturamento_periodo = 0;
@@ -77,7 +86,7 @@ $pagina_atual = 'financeiro';
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=<?= time() ?>">
     <link rel="stylesheet" href="admin_style.css?v=<?= time() ?>">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         /* ── EXTRAS EXCLUSIVOS DA PÁGINA DE VENDAS ── */
 
@@ -233,7 +242,7 @@ $pagina_atual = 'financeiro';
     <div class="kpi-grid">
         <div class="kpi-card featured">
             <div class="kpi-icon">💵</div>
-            <div class="kpi-label">Faturamento (Pago) no Período</div>
+            <div class="kpi-label">Faturamento no Período (pago ou além)</div>
             <div class="kpi-value">R$ <?= number_format($faturamento_periodo, 2, ',', '.') ?></div>
             <div class="kpi-sub"><?= count($vendasPagas) ?> venda(s) confirmada(s)</div>
         </div>
@@ -249,7 +258,7 @@ $pagina_atual = 'financeiro';
             <div class="kpi-value">
                 R$ <?= number_format(count($vendasPagas) > 0 ? $faturamento_periodo / count($vendasPagas) : 0, 2, ',', '.') ?>
             </div>
-            <div class="kpi-sub">Por pedido pago</div>
+            <div class="kpi-sub">Por pedido faturado</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-icon">🗓️</div>
@@ -312,7 +321,7 @@ $pagina_atual = 'financeiro';
                     <td style="font-weight:900; color:var(--muted);">#<?= str_pad($v['id'],4,'0',STR_PAD_LEFT) ?></td>
                     <td style="font-weight:700;"><?= htmlspecialchars($v['cliente']) ?></td>
                     <td style="font-weight:800;">R$ <?= number_format($v['total'], 2, ',', '.') ?></td>
-                    <td><span class="badge badge-pago">Pago</span></td>
+                    <td><span class="badge badge-<?= htmlspecialchars($v['status']) ?>"><?= htmlspecialchars(str_replace('_', ' ', $v['status'])) ?></span></td>
                     <td style="color:var(--text2); font-size:12px;"><?= date('d/m/Y H:i', strtotime($v['data_pedido'])) ?></td>
                 </tr>
                 <?php endforeach; ?>
@@ -361,7 +370,9 @@ function switchTab(type, btn) {
 }
 
 const ctx = document.getElementById('chartReceita').getContext('2d');
-new Chart(ctx, {
+if (typeof Chart === 'undefined') {
+    ctx.canvas.insertAdjacentHTML('afterend', '<p style="color:#b45309;font-size:13px;">⚠ Não foi possível carregar a biblioteca do gráfico (bloqueio de rede/extensão?).</p>');
+} else new Chart(ctx, {
     type: 'line',
     data: {
         labels: <?= $graf_labels ?>,

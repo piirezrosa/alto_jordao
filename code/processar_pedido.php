@@ -63,7 +63,7 @@ $token_ps  = (string)($dados['token_ps'] ?? '');
 $issuer_id = (string)($dados['issuer_id'] ?? '');
 $pm_id     = (string)($dados['payment_method_id'] ?? '');
 $cupom_codigo = strtoupper(trim((string)($dados['cupom'] ?? '')));
-$frete_servico_pedido = preg_replace('/[^a-z]/', '', strtolower((string)($dados['frete_servico'] ?? '')));
+$frete_servico_pedido = preg_replace('/[^a-z0-9_]/', '', strtolower((string)($dados['frete_servico'] ?? '')));
 
 if (strlen($cpf) !== 11)  responder(['sucesso' => false, 'erro' => 'CPF inválido.'], 422);
 if (strlen($cep) !== 8 || $rua === '' || $numero === '' || $cidade === '') {
@@ -117,7 +117,7 @@ fin_garantir_schema($pdo);   // inclui as colunas do checkout (frete/cupom) e do
 try {
     $pdo->beginTransaction();
 
-    $stmtProd = $pdo->prepare("SELECT id, nome, preco, custo, estoque FROM produtos WHERE id = ? AND ativo = 1 FOR UPDATE");
+    $stmtProd = $pdo->prepare("SELECT id, nome, preco, custo, estoque, peso_kg, largura_cm, altura_cm, comprimento_cm FROM produtos WHERE id = ? AND ativo = 1 FOR UPDATE");
 
     // Ordena por id para evitar deadlock entre pedidos concorrentes
     uasort($linhas, fn($a, $b) => $a['id'] <=> $b['id']);
@@ -150,6 +150,7 @@ try {
             'id' => $l['id'], 'nome' => $p['nome'], 'preco' => $preco,
             'custo' => ($p['custo'] !== null && $p['custo'] !== '') ? round((float)$p['custo'], 2) : null,
             'qtd' => $l['qtd'], 'variacoes' => $l['variacoes'],
+            'peso_kg' => $p['peso_kg'], 'largura_cm' => $p['largura_cm'], 'altura_cm' => $p['altura_cm'], 'comprimento_cm' => $p['comprimento_cm'],
         ];
     }
     $subtotal = round($subtotal, 2);
@@ -165,9 +166,13 @@ try {
     }
 
     // Mesma função que gerou o resumo exibido ao cliente
-    $qtd_pecas = 0; foreach ($itens_validados as $it) $qtd_pecas += (int)$it['qtd'];
-    $t = loja_calcular_totais($pdo, $subtotal, $metodo, $cupom_val, $cep, $qtd_pecas, $frete_servico_pedido);
+    $t = loja_calcular_totais($pdo, $subtotal, $metodo, $cupom_val, $cep, $itens_validados, $frete_servico_pedido);
     if (!$t['frete_definido']) throw new RuntimeException($t['frete_erro'] ?: 'Não foi possível calcular o frete.');
+    // O preço visto pelo cliente precisa ser o cobrado (a cotação real pode mudar entre o resumo e o pagamento)
+    if (isset($dados['frete_esperado']) && is_numeric($dados['frete_esperado'])
+        && abs((float)$dados['frete_esperado'] - (float)$t['frete']) > 0.009) {
+        throw new RuntimeException('O valor do frete foi atualizado para R$ ' . number_format($t['frete'], 2, ',', '.') . '. Confira o resumo e confirme novamente.');
+    }
     // O cliente precisa ter escolhido uma opção que o servidor realmente oferece para este CEP
     if ($frete_servico_pedido === '' || $t['frete_servico'] !== $frete_servico_pedido) {
         throw new RuntimeException('Escolha uma opção de entrega válida para o seu CEP.');

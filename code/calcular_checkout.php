@@ -28,7 +28,7 @@ if (!is_array($d)) saida(['ok' => false, 'erro' => 'Requisição inválida.'], 4
 $metodo = in_array($d['metodo'] ?? 'pix', ['pix', 'cartao', 'boleto'], true) ? $d['metodo'] : 'pix';
 $codigo = strtoupper(trim((string)($d['cupom'] ?? '')));
 $cep    = preg_replace('/\D/', '', (string)($d['cep'] ?? ''));
-$servico = preg_replace('/[^a-z]/', '', strtolower((string)($d['frete_servico'] ?? '')));
+$servico = preg_replace('/[^a-z0-9_]/', '', strtolower((string)($d['frete_servico'] ?? '')));
 
 $c = loja_carregar_itens($pdo, $d['carrinho'] ?? []);
 if (!$c['ok']) saida(['ok' => false, 'erro' => $c['erro']], 409);
@@ -54,12 +54,11 @@ if ($codigo !== '') {
     }
 }
 
-$qtd_pecas = array_sum(array_column($c['itens'], 'qtd'));
-$t = loja_calcular_totais($pdo, $c['subtotal'], $metodo, $cupom_val, $cep, $qtd_pecas, $servico);
+$t = loja_calcular_totais($pdo, $c['subtotal'], $metodo, $cupom_val, $cep, $c['itens'], $servico);
 if ($t['erro'] !== '') {   // cupom que zeraria o pedido: recalcula sem ele
     $cupom_erro = $t['erro'];
     $cupom_val  = null;
-    $t = loja_calcular_totais($pdo, $c['subtotal'], $metodo, null, $cep, $qtd_pecas, $servico);
+    $t = loja_calcular_totais($pdo, $c['subtotal'], $metodo, null, $cep, $c['itens'], $servico);
 }
 
 saida([

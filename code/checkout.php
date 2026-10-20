@@ -446,6 +446,7 @@ let cupomAplicado = '';
 let totalFinal    = 0;
 let calcSeq       = 0;
 let freteServico  = '';      // opção de entrega escolhida (o servidor confere)
+let freteValor    = 0;       // frete que o cliente está vendo (o servidor confere na cobrança)
 let freteDefinido = false;   // true quando o servidor conseguiu cotar o frete para o CEP
 
 const fmtBRL = v => 'R$ ' + Number(v).toLocaleString('pt-br', {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -534,6 +535,7 @@ function renderizarTotais(r) {
     }
 
     freteDefinido = !!r.frete_definido;
+    freteValor    = Number(r.frete) || 0;
     freteServico  = r.frete_servico || '';
     renderizarOpcoesFrete(r);
 
@@ -847,6 +849,7 @@ async function finalizarPedido() {
         parcelas:  parseInt(document.getElementById('selectParcelas')?.value || '1'),
         cupom:     cupomAplicado,
         frete_servico: freteServico,
+        frete_esperado: freteValor,
     };
 
     // Gera tokens do cartão nos dois gateways simultaneamente
@@ -896,6 +899,7 @@ async function finalizarPedido() {
         } else {
             msgBox.textContent   = '⚠ ' + (data.erro || 'Erro ao processar pagamento.');
             msgBox.style.display = 'block';
+            atualizarTotal();   // o frete/cupom pode ter mudado: mostra o resumo atual
             btn.disabled         = false;
             btn.textContent      = 'Confirmar e Pagar';
         }

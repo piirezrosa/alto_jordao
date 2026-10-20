@@ -11,9 +11,12 @@
  *      usando a TABELA editável em Admin → Configurações → Frete.
  *   4. Frete grátis (se ativo e o pedido atingiu o mínimo) zera a opção MAIS BARATA.
  *
- * Os valores da tabela são estimativas editáveis; para preço oficial é preciso contrato com a
- * transportadora (API) — esta camada é o ponto onde isso entraria.
+ * Com o Melhor Envio ativado (Configurações → Frete + token no .env) a cotação vem da API, com peso e
+ * medidas reais dos produtos. Se a API falhar ou não devolver nenhum serviço, cai nesta tabela — o
+ * checkout nunca fica sem frete.
  */
+
+require_once __DIR__ . '/melhorenvio.php';
 
 const FRETE_SERVICOS = [
     'pac'    => ['transportadora' => 'Correios', 'nome' => 'Correios PAC',    'toggle' => 'frete_correios_ativo'],
@@ -29,6 +32,11 @@ const FRETE_TABELA_PADRAO = [
 ];
 
 const FRETE_PESO_PADRAO_KG = 0.4;   // peso médio de uma peça de roupa (editável)
+
+/** Medidas (cm) usadas quando o produto não tem as dele cadastradas — caixa pequena de roupa dobrada. */
+const FRETE_DIM_PADRAO = ['largura_cm' => 20.0, 'altura_cm' => 5.0, 'comprimento_cm' => 25.0];
+/** Mínimos aceitos pelos Correios/Melhor Envio. */
+const FRETE_DIM_MINIMA = ['largura_cm' => 11.0, 'altura_cm' => 2.0, 'comprimento_cm' => 16.0];
 
 const FRETE_REGIOES = [
     'N'  => ['AC','AP','AM','PA','RO','RR','TO'],
@@ -89,36 +97,124 @@ function frete_linha_tabela(PDO $pdo, string $servico, int $zona): array
     ];
 }
 
+/** Colunas de peso/medidas em `produtos` (cria o que faltar; chamar fora de transação). */
+function frete_garantir_schema(PDO $pdo): void
+{
+    static $feito = false;
+    if ($feito) return;
+    $feito = true;
+    try {
+        $cols = $pdo->query("SHOW COLUMNS FROM produtos")->fetchAll(PDO::FETCH_COLUMN);
+        foreach (['peso_kg' => 'DECIMAL(6,3)', 'largura_cm' => 'DECIMAL(6,1)', 'altura_cm' => 'DECIMAL(6,1)', 'comprimento_cm' => 'DECIMAL(6,1)'] as $c => $t) {
+            if (!in_array($c, $cols, true)) $pdo->exec("ALTER TABLE produtos ADD COLUMN $c $t NULL");
+        }
+    } catch (Throwable $e) {
+        error_log('[FRETE SCHEMA] ' . $e->getMessage() . ' — rode code/migrations/2026_10_20_frete_melhorenvio.sql');
+    }
+}
+
+/**
+ * Completa peso/medidas dos itens (produto sem cadastro usa o padrão das configurações) e aplica os mínimos.
+ * @param array $itens  [{id, qtd, preco, peso_kg?, largura_cm?, altura_cm?, comprimento_cm?}]
+ * @return array  [{id, qtd, valor, peso_kg, largura_cm, altura_cm, comprimento_cm}]
+ */
+function frete_normalizar_itens(PDO $pdo, array $itens): array
+{
+    $peso_pad = max(0.05, frete_num($pdo, 'frete_peso_item_kg', FRETE_PESO_PADRAO_KG));
+    $pad = [
+        'largura_cm'     => frete_num($pdo, 'frete_dim_largura_cm',     FRETE_DIM_PADRAO['largura_cm']),
+        'altura_cm'      => frete_num($pdo, 'frete_dim_altura_cm',      FRETE_DIM_PADRAO['altura_cm']),
+        'comprimento_cm' => frete_num($pdo, 'frete_dim_comprimento_cm', FRETE_DIM_PADRAO['comprimento_cm']),
+    ];
+    $out = [];
+    foreach ($itens as $it) {
+        $linha = ['id' => $it['id'], 'qtd' => max(1, (int)$it['qtd']), 'valor' => round((float)($it['preco'] ?? 0), 2)];
+        $peso = isset($it['peso_kg']) && is_numeric($it['peso_kg']) && (float)$it['peso_kg'] > 0 ? (float)$it['peso_kg'] : $peso_pad;
+        $linha['peso_kg'] = round($peso, 3);
+        foreach ($pad as $k => $padrao) {
+            $v = isset($it[$k]) && is_numeric($it[$k]) && (float)$it[$k] > 0 ? (float)$it[$k] : $padrao;
+            $linha[$k] = max(FRETE_DIM_MINIMA[$k], $v);
+        }
+        $out[] = $linha;
+    }
+    return $out;
+}
+
+/** Cotação do Melhor Envio com cache curto na sessão (o resumo recalcula a cada clique; a cobrança reusa o mesmo preço). */
+function frete_cotar_melhorenvio(PDO $pdo, string $cep, array $itens_norm): array
+{
+    $origem = preg_replace('/\D/', '', (string)loja_cfg($pdo, 'frete_cep_origem', ''));
+    if (strlen($origem) !== 8) return ['ok' => false, 'erro' => 'CEP de origem não configurado.', 'servicos' => []];
+
+    $chave = md5(json_encode([$origem, $cep, $itens_norm, MelhorEnvio::sandbox()]));
+    $agora = time();
+    if (isset($_SESSION['frete_cache'][$chave]) && ($agora - $_SESSION['frete_cache'][$chave]['t']) < 900) {
+        return ['ok' => true, 'erro' => '', 'servicos' => $_SESSION['frete_cache'][$chave]['servicos']];
+    }
+    $r = MelhorEnvio::cotar($origem, $cep, $itens_norm);
+    if ($r['ok'] && $r['servicos'] && isset($_SESSION)) {
+        $_SESSION['frete_cache'] = array_slice(($_SESSION['frete_cache'] ?? []) + [$chave => ['t' => $agora, 'servicos' => $r['servicos']]], -20, null, true);
+        $_SESSION['frete_cache'][$chave] = ['t' => $agora, 'servicos' => $r['servicos']];
+    }
+    return $r;
+}
+
 /**
  * Cota o frete de um pedido.
- * @param string $cep       CEP de entrega (8 dígitos)
- * @param int    $qtd_itens total de peças
- * @param float  $base      valor dos produtos já com cupom (para a regra de frete grátis)
- * @return array{ok:bool, erro:string, uf:?string, zona:int, peso_kg:float, opcoes:array}
+ * @param string $cep    CEP de entrega (8 dígitos)
+ * @param array  $itens  itens do carrinho (ver frete_normalizar_itens)
+ * @param float  $base   valor dos produtos já com cupom (para a regra de frete grátis)
+ * @return array{ok:bool, erro:string, uf:?string, zona:int, peso_kg:float, fonte:string, opcoes:array}
  *   opcoes[]: id, transportadora, nome, preco, prazo, gratis   (ordenadas do mais barato ao mais caro)
+ *   fonte: 'melhorenvio' ou 'tabela'
  */
-function frete_cotar(PDO $pdo, string $cep, int $qtd_itens, float $base): array
+function frete_cotar(PDO $pdo, string $cep, array $itens, float $base): array
 {
-    $falha = fn(string $m) => ['ok' => false, 'erro' => $m, 'uf' => null, 'zona' => 0, 'peso_kg' => 0.0, 'opcoes' => []];
+    $falha = fn(string $m) => ['ok' => false, 'erro' => $m, 'uf' => null, 'zona' => 0, 'peso_kg' => 0.0, 'fonte' => '', 'opcoes' => []];
 
     $cep = preg_replace('/\D/', '', $cep);
     if (strlen($cep) !== 8) return $falha('Informe o CEP para calcular o frete.');
     $uf = frete_uf_do_cep($cep);
     if ($uf === null) return $falha('CEP não encontrado. Confira os números.');
-    if ($qtd_itens <= 0) return $falha('Carrinho vazio.');
+    $norm = frete_normalizar_itens($pdo, $itens);
+    if (!$norm) return $falha('Carrinho vazio.');
+
+    $peso = 0.0;
+    foreach ($norm as $n) $peso += $n['peso_kg'] * $n['qtd'];
+    $peso = round(max(0.3, $peso), 3);
 
     $uf_origem = frete_uf_do_cep((string)loja_cfg($pdo, 'frete_cep_origem', ''));
     $zona      = frete_zona($uf_origem, $uf);
-    $peso      = round(max(0.3, $qtd_itens * frete_num($pdo, 'frete_peso_item_kg', FRETE_PESO_PADRAO_KG)), 3);
-    $kg_extra  = max(0, (int)ceil($peso) - 1);
+    $opcoes    = [];
+    $fonte     = 'tabela';
 
-    $opcoes = [];
-    foreach (FRETE_SERVICOS as $id => $s) {
-        if (loja_cfg($pdo, $s['toggle'], $id === 'jadlog' ? '0' : '1') !== '1') continue;
-        [$base_z, $kg_z, $prazo] = frete_linha_tabela($pdo, $id, $zona);
-        $opcoes[] = ['id' => $id, 'transportadora' => $s['transportadora'], 'nome' => $s['nome'],
-                     'preco' => round($base_z + $kg_z * $kg_extra, 2), 'prazo' => $prazo, 'gratis' => false];
+    // 1) Melhor Envio (se ligado e com token): cotação real; respeita os interruptores Correios/Jadlog
+    if (loja_cfg($pdo, 'frete_melhorenvio_ativo', '0') === '1' && MelhorEnvio::configurado()) {
+        $r = frete_cotar_melhorenvio($pdo, $cep, $norm);
+        if (!$r['ok']) error_log('[FRETE] Melhor Envio indisponível, usando tabela: ' . $r['erro']);
+        foreach ($r['servicos'] as $sv) {
+            $emp = strtolower($sv['empresa']);
+            if (strpos($emp, 'correios') !== false)     $ligado = loja_cfg($pdo, 'frete_correios_ativo', '1') === '1';
+            elseif (strpos($emp, 'jadlog') !== false)   $ligado = loja_cfg($pdo, 'frete_jadlog_ativo', '0') === '1';
+            else                                        $ligado = loja_cfg($pdo, 'frete_melhorenvio_outras', '0') === '1';
+            if (!$ligado) continue;
+            $opcoes[] = ['id' => 'me' . $sv['id'], 'transportadora' => $sv['empresa'] !== '' ? $sv['empresa'] : 'Melhor Envio',
+                         'nome' => $sv['nome'], 'preco' => $sv['preco'], 'prazo' => $sv['prazo'], 'gratis' => false];
+        }
+        if ($opcoes) $fonte = 'melhorenvio';
     }
+
+    // 2) Tabela própria (padrão, ou plano B se a API falhou / não devolveu serviços)
+    if (!$opcoes) {
+        $kg_extra = max(0, (int)ceil($peso) - 1);
+        foreach (FRETE_SERVICOS as $id => $s) {
+            if (loja_cfg($pdo, $s['toggle'], $id === 'jadlog' ? '0' : '1') !== '1') continue;
+            [$base_z, $kg_z, $prazo] = frete_linha_tabela($pdo, $id, $zona);
+            $opcoes[] = ['id' => $id, 'transportadora' => $s['transportadora'], 'nome' => $s['nome'],
+                         'preco' => round($base_z + $kg_z * $kg_extra, 2), 'prazo' => $prazo, 'gratis' => false];
+        }
+    }
+
     if (loja_cfg($pdo, 'frete_frete_fixo_ativo', '0') === '1') {
         $opcoes[] = ['id' => 'fixo', 'transportadora' => 'Correios', 'nome' => 'Frete fixo',
                      'preco' => round(frete_num($pdo, 'frete_frete_fixo_valor', 15.0), 2),
@@ -139,5 +235,32 @@ function frete_cotar(PDO $pdo, string $cep, int $qtd_itens, float $base): array
         $opcoes[0]['gratis'] = true;
     }
 
-    return ['ok' => true, 'erro' => '', 'uf' => $uf, 'zona' => $zona, 'peso_kg' => $peso, 'opcoes' => $opcoes];
+    return ['ok' => true, 'erro' => '', 'uf' => $uf, 'zona' => $zona, 'peso_kg' => $peso, 'fonte' => $fonte, 'opcoes' => $opcoes];
+}
+
+/**
+ * Lê peso/medidas enviados pelo formulário de produto. Campo vazio = NULL (usa o padrão da loja).
+ * @return array{0:array, 1:string}  [valores (peso_kg, largura_cm, altura_cm, comprimento_cm), mensagem de erro ('' se ok)]
+ */
+function frete_ler_dimensoes_post(array $post): array
+{
+    $lim = ['peso_kg' => [0.01, 50], 'largura_cm' => [1, 200], 'altura_cm' => [1, 200], 'comprimento_cm' => [1, 200]];
+    $out = []; 
+    foreach ($lim as $campo => [$min, $max]) {
+        $v = trim(str_replace(',', '.', (string)($post[$campo] ?? '')));
+        if ($v === '') { $out[$campo] = null; continue; }
+        if (!is_numeric($v) || (float)$v < $min || (float)$v > $max) {
+            return [[], "Valor inválido em \"$campo\" (use entre $min e $max)."];
+        }
+        $out[$campo] = (float)$v;
+    }
+    return [$out, ''];
+}
+
+/** Grava peso/medidas de um produto (chamar fora de transação). */
+function frete_salvar_dimensoes(PDO $pdo, int $produto_id, array $dim): void
+{
+    frete_garantir_schema($pdo);
+    $pdo->prepare("UPDATE produtos SET peso_kg = ?, largura_cm = ?, altura_cm = ?, comprimento_cm = ? WHERE id = ?")
+        ->execute([$dim['peso_kg'], $dim['largura_cm'], $dim['altura_cm'], $dim['comprimento_cm'], $produto_id]);
 }

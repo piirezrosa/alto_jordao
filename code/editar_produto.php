@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'frete_helpers.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -15,6 +16,7 @@ $id = $_GET['id'] ?? null;
 if (!$id) { header("Location: _dashboard.php"); exit; }
 
 // Busca o produto atual
+frete_garantir_schema($pdo);   // garante peso/medidas antes do SELECT *
 $query = $pdo->prepare("SELECT * FROM produtos WHERE id = ?");
 $query->execute([$id]);
 $p = $query->fetch(PDO::FETCH_ASSOC);
@@ -43,7 +45,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $sql = "UPDATE produtos SET nome=?, preco=?, preco_antigo=?, categoria=?, genero=?, tamanho=?, cor=?, imagem=? WHERE id=?";
     $update = $pdo->prepare($sql);
     
+    [$dim_frete, $erro_dim] = frete_ler_dimensoes_post($_POST);
+    if ($erro_dim !== '') {
+        echo "<script>alert(" . json_encode('Produto NÃO salvo: ' . $erro_dim) . "); history.back();</script>"; exit;
+    }
     if ($update->execute([$nome, $preco_novo, $preco_antigo, $categoria, $genero, $tamanho, $cor, $imagem, $id])) {
+        frete_salvar_dimensoes($pdo, (int)$id, $dim_frete);
         echo "<script>alert('Produto atualizado com sucesso!'); window.location.href='admin_dashboard.php';</script>";
     }
 }
@@ -97,6 +104,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="number" step="0.01" name="preco_antigo" class="auth-input" value="<?= $p['preco_antigo'] ?>"
                                    style="width: 100%; padding: 15px; border: 1px solid #eee; border-radius: 10px; margin-top: 8px; color: #888;">
                             <small style="font-size: 10px; color: #aaa;">Se o preço acima for menor que este, o item entra em <b>OFERTA</b>.</small>
+                        </div>
+
+                        <div class="input-grupo">
+                            <label style="font-weight: 700; font-size: 11px; color: #bbb; letter-spacing: 1px;">PESO (KG) E EMBALAGEM (CM) — PARA O FRETE</label>
+                            <div style="display:flex; gap:8px; margin-top:8px;">
+                                <input type="number" step="0.001" min="0.01" name="peso_kg" placeholder="Peso kg" value="<?= htmlspecialchars((string)($p['peso_kg'] ?? '')) ?>" style="flex:1; padding:12px; border:1px solid #eee; border-radius:10px;">
+                                <input type="number" step="0.1" min="1" name="largura_cm" placeholder="Larg." value="<?= htmlspecialchars((string)($p['largura_cm'] ?? '')) ?>" style="flex:1; padding:12px; border:1px solid #eee; border-radius:10px;">
+                                <input type="number" step="0.1" min="1" name="altura_cm" placeholder="Alt." value="<?= htmlspecialchars((string)($p['altura_cm'] ?? '')) ?>" style="flex:1; padding:12px; border:1px solid #eee; border-radius:10px;">
+                                <input type="number" step="0.1" min="1" name="comprimento_cm" placeholder="Comp." value="<?= htmlspecialchars((string)($p['comprimento_cm'] ?? '')) ?>" style="flex:1; padding:12px; border:1px solid #eee; border-radius:10px;">
+                            </div>
+                            <small style="font-size: 10px; color: #aaa;">Vazio = padrão da loja (Configurações → Frete). Usado na cotação real do Melhor Envio.</small>
                         </div>
 
                         <div class="input-grupo">

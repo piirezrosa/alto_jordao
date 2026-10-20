@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
 require_once 'financeiro_helpers.php';
 require_once 'frete_helpers.php';
+require_once 'melhorenvio.php';
 
 // Apenas superadmin acessa configurações do sistema
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin'])) {
@@ -12,6 +13,18 @@ if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], 
 $msg = '';
 
 // ── SALVAR CONFIGURAÇÕES ──────────────────────
+// Teste de conexão com o Melhor Envio (cota uma caixa padrão da origem para um CEP de teste)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['testar_melhorenvio'])) {
+    if (!in_array($_SESSION['usuario_nivel'] ?? '', ['admin','superadmin'], true)) { http_response_code(403); exit('Acesso restrito.'); }
+    if (!fin_csrf_ok($_POST['csrf'] ?? null)) { header("Location: admin_configuracoes.php?secao=frete&msg=csrf"); exit(); }
+    $origem_t = preg_replace('/\D/', '', (string)loja_cfg($pdo, 'frete_cep_origem', ''));
+    if (!MelhorEnvio::configurado())      $res_t = ['ok' => false, 'erro' => 'MELHORENVIO_TOKEN não está no arquivo .env.', 'servicos' => []];
+    elseif (strlen($origem_t) !== 8)      $res_t = ['ok' => false, 'erro' => 'Preencha o CEP de origem e salve antes de testar.', 'servicos' => []];
+    else $res_t = MelhorEnvio::cotar($origem_t, '01001000', frete_normalizar_itens($pdo, [['id' => 'teste', 'qtd' => 1, 'preco' => 100]]));
+    $_SESSION['me_teste'] = $res_t + ['quando' => date('H:i:s'), 'sandbox' => MelhorEnvio::sandbox()];
+    header("Location: admin_configuracoes.php?secao=frete"); exit();
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['secao'])) {
     $secao = $_POST['secao'];
 
@@ -575,6 +588,7 @@ $pagina_atual = 'configuracoes';
             <?php if($secao_ativa === 'frete'): ?>
             <div class="admin-card config-panel active">
                 <div class="card-header"><span class="card-title">📦 Frete e Logística</span></div>
+                <form method="POST" id="formTesteME" style="display:none;"><input type="hidden" name="testar_melhorenvio" value="1"><input type="hidden" name="csrf" value="<?= htmlspecialchars(fin_csrf_token()) ?>"></form>
                 <form method="POST">
                     <input type="hidden" name="secao" value="frete">
 
@@ -672,6 +686,75 @@ $pagina_atual = 'configuracoes';
                             <input type="text" name="rastreio_url" value="<?= cfg($pdo,'frete_rastreio_url','https://rastreamento.correios.com.br') ?>" placeholder="URL do rastreamento">
                         </div>
                     </div>
+
+                    <div class="config-section-title">Cotação real — Melhor Envio</div>
+                    <?php
+                        $me_token = MelhorEnvio::configurado();
+                        $me_teste = $_SESSION['me_teste'] ?? null; unset($_SESSION['me_teste']);
+                    ?>
+                    <div style="background:<?= $me_token ? '#e8f5e9' : '#fff8e1' ?>;border-radius:12px;padding:12px 14px;font-size:13px;margin-bottom:14px;">
+                        <?php if ($me_token): ?>
+                            ✔ Token encontrado no <code>.env</code> — ambiente: <strong><?= MelhorEnvio::sandbox() ? 'SANDBOX (testes)' : 'PRODUÇÃO' ?></strong>.
+                        <?php else: ?>
+                            ⚠ Token não configurado. Adicione <code>MELHORENVIO_TOKEN</code>, <code>MELHORENVIO_SANDBOX</code> e <code>MELHORENVIO_EMAIL</code> ao arquivo <code>.env</code> (veja <code>.env.example</code>). O token nunca é guardado no banco nem no GitHub.
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="toggle-row">
+                        <div class="toggle-info">
+                            <strong>Usar cotação real do Melhor Envio</strong>
+                            <span>Preço e prazo vêm da API com peso/medidas dos produtos. Se a API falhar, usa a tabela abaixo.</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="hidden" name="melhorenvio_ativo" value="0">
+                            <input type="checkbox" name="melhorenvio_ativo" value="1" <?= cfg($pdo,'frete_melhorenvio_ativo','0')==='1'?'checked':''?>>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <div class="toggle-info">
+                            <strong>Oferecer também outras transportadoras do Melhor Envio</strong>
+                            <span>Além de Correios e Jadlog (que seguem os interruptores acima), ex.: Azul Cargo, LATAM Cargo.</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="hidden" name="melhorenvio_outras" value="0">
+                            <input type="checkbox" name="melhorenvio_outras" value="1" <?= cfg($pdo,'frete_melhorenvio_outras','0')==='1'?'checked':''?>>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="field-group triple">
+                        <div class="input-group">
+                            <label>Medidas padrão — largura (cm)</label>
+                            <input type="number" step="0.1" min="11" name="dim_largura_cm" value="<?= cfg($pdo,'frete_dim_largura_cm',(string)FRETE_DIM_PADRAO['largura_cm']) ?>">
+                        </div>
+                        <div class="input-group">
+                            <label>altura (cm)</label>
+                            <input type="number" step="0.1" min="2" name="dim_altura_cm" value="<?= cfg($pdo,'frete_dim_altura_cm',(string)FRETE_DIM_PADRAO['altura_cm']) ?>">
+                        </div>
+                        <div class="input-group">
+                            <label>comprimento (cm)</label>
+                            <input type="number" step="0.1" min="16" name="dim_comprimento_cm" value="<?= cfg($pdo,'frete_dim_comprimento_cm',(string)FRETE_DIM_PADRAO['comprimento_cm']) ?>">
+                            <small>Para produtos sem peso/medidas cadastrados. Mínimos dos Correios: 11 × 2 × 16 cm.</small>
+                        </div>
+                    </div>
+
+                    <?php if ($me_teste): ?>
+                    <div style="border:1px solid #eee;border-radius:12px;padding:12px 14px;font-size:13px;margin-bottom:14px;">
+                        <strong>Teste de conexão (<?= htmlspecialchars($me_teste['quando']) ?>, <?= $me_teste['sandbox'] ? 'sandbox' : 'produção' ?>):</strong>
+                        <?php if ($me_teste['ok']): ?>
+                            <span style="color:#2e7d32;">✔ API respondeu com <?= count($me_teste['servicos']) ?> serviço(s) com preço</span> (origem → 01001-000, caixa padrão):
+                            <ul style="margin:6px 0 0 18px;">
+                            <?php foreach ($me_teste['servicos'] as $sv): ?>
+                                <li><?= htmlspecialchars($sv['nome']) ?> — R$ <?= number_format($sv['preco'], 2, ',', '.') ?> — <?= (int)$sv['prazo'] ?> dia(s)</li>
+                            <?php endforeach; ?>
+                            </ul>
+                        <?php else: ?>
+                            <span style="color:#c62828;">✖ <?= htmlspecialchars($me_teste['erro']) ?></span>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
+                    <button type="submit" form="formTesteME" class="btn-admin-ghost" style="margin-bottom:18px;">🔌 Testar conexão com o Melhor Envio</button>
 
                     <div class="config-section-title">Tabela de preços (valores de exemplo — ajuste aos seus contratos)</div>
                     <p style="font-size:12px;color:#888;margin:0 0 10px;">

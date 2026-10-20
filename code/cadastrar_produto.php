@@ -6,6 +6,7 @@ if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], 
     header("Location: login.php"); exit();
 }
 
+require_once 'frete_helpers.php';
 $msg_sucesso = $msg_erro = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -21,6 +22,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $descricao   = $_POST['descricao'] ?? null;
     $destaque    = isset($_POST['destaque']) ? 1 : 0;
 
+    [$dim_frete, $erro_dim] = frete_ler_dimensoes_post($_POST);
+    if ($erro_dim !== '') $msg_erro = $erro_dim;
+
     $imagem = "default.jpg";
     if (!empty($_FILES['imagem']['name'])) {
         $ext        = pathinfo($_FILES['imagem']['name'], PATHINFO_EXTENSION);
@@ -30,11 +34,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $imagem = $nome_img;
     }
 
-    try {
+    if ($msg_erro === '') try {
         $sql  = "INSERT INTO produtos (nome, preco, preco_antigo, custo, categoria, genero, tamanho, cor, estoque, descricao, destaque, imagem)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $pdo->prepare($sql);
         if ($stmt->execute([$nome, $preco, $preco_antigo, $custo, $categoria, $genero, $tamanho, $cor, $estoque, $descricao, $destaque, $imagem])) {
+            frete_salvar_dimensoes($pdo, (int)$pdo->lastInsertId(), $dim_frete);
             // Log
             $log = $pdo->prepare("INSERT INTO logs_sistema (usuario_id, acao, tabela, registro_id, detalhes, ip) VALUES (?,?,?,?,?,?)");
             $log->execute([$_SESSION['usuario_id']??null, 'produto_criado', 'produtos', $pdo->lastInsertId(), $nome, $_SERVER['REMOTE_ADDR']]);
@@ -231,6 +236,21 @@ $pagina_atual = 'novo_produto';
                 <div class="input-group">
                     <label>Custo de Aquisição (R$)</label>
                     <input type="number" step="0.01" name="custo" placeholder="Usado no cálculo de lucro">
+                </div>
+
+                <div class="input-group">
+                    <label>Peso (kg)</label>
+                    <input type="number" step="0.001" min="0.01" name="peso_kg" placeholder="Ex.: 0,350 — vazio usa o padrão da loja">
+                </div>
+
+                <div class="input-group">
+                    <label>Embalagem: largura × altura × comprimento (cm)</label>
+                    <div style="display:flex;gap:8px;">
+                        <input type="number" step="0.1" min="1" name="largura_cm"     placeholder="Larg." style="flex:1;">
+                        <input type="number" step="0.1" min="1" name="altura_cm"      placeholder="Alt."  style="flex:1;">
+                        <input type="number" step="0.1" min="1" name="comprimento_cm" placeholder="Comp." style="flex:1;">
+                    </div>
+                    <small>Usados para cotar o frete real. Vazio = medidas padrão da loja (Configurações → Frete).</small>
                 </div>
 
                 <div class="input-group">

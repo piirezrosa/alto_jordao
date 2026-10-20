@@ -50,6 +50,7 @@ function loja_garantir_schema(PDO $pdo): void
         if (!in_array('desconto_cupom', $cols, true)) $pdo->exec("ALTER TABLE pedidos ADD COLUMN desconto_cupom DECIMAL(10,2) NOT NULL DEFAULT 0");
         if (!in_array('frete_servico', $cols, true))  $pdo->exec("ALTER TABLE pedidos ADD COLUMN frete_servico VARCHAR(30) NULL");
         if (!in_array('frete_prazo', $cols, true))    $pdo->exec("ALTER TABLE pedidos ADD COLUMN frete_prazo INT NULL");
+        frete_garantir_schema($pdo);   // peso/medidas em produtos (Melhor Envio)
     } catch (Throwable $e) {
         error_log('[LOJA SCHEMA] ' . $e->getMessage() . ' — rode code/migrations/2026_10_15_frete_cupom.sql manualmente');
     }
@@ -126,12 +127,12 @@ function cupom_liberar(PDO $pdo, string $codigo): void
  * Calcula todos os valores do pedido.
  * @param array|null $cupom_validado  retorno de cupom_validar() (ou null sem cupom)
  * @param string $cep        CEP de entrega (sem ele o frete fica "não definido" e o total sai sem frete)
- * @param int    $qtd_itens  total de peças (define o peso)
+ * @param array  $itens      itens do carrinho [{id, qtd, preco, peso_kg?, largura_cm?, altura_cm?, comprimento_cm?}] (definem peso/medidas)
  * @param string $servico    id da opção escolhida (pac|sedex|jadlog|fixo|gratis). Vazio/inválido → a mais barata;
  *                           quem cobra deve conferir que 'frete_servico' do retorno é o que o cliente pediu.
  */
 function loja_calcular_totais(PDO $pdo, float $subtotal, string $metodo, ?array $cupom_validado = null,
-                              string $cep = '', int $qtd_itens = 0, string $servico = ''): array
+                              string $cep = '', array $itens = [], string $servico = ''): array
 {
     $subtotal = round($subtotal, 2);
 
@@ -140,7 +141,7 @@ function loja_calcular_totais(PDO $pdo, float $subtotal, string $metodo, ?array 
     $desc_pix   = ($metodo === 'pix') ? round($base * LOJA_DESCONTO_PIX, 2) : 0.0;
 
     // Frete cotado no servidor pelo CEP
-    $cot = frete_cotar($pdo, $cep, $qtd_itens, $base);
+    $cot = frete_cotar($pdo, $cep, $itens, $base);
     $sel = null;
     if ($cot['ok']) {
         foreach ($cot['opcoes'] as $o) if ($o['id'] === $servico) { $sel = $o; break; }
@@ -193,7 +194,8 @@ function loja_carregar_itens(PDO $pdo, $carrinho_in): array
         $qtd_por_produto[$pid] = ($qtd_por_produto[$pid] ?? 0) + $qtd;
     }
 
-    $st = $pdo->prepare("SELECT id, nome, preco, estoque FROM produtos WHERE id = ? AND ativo = 1");
+    loja_garantir_schema($pdo);   // garante as colunas de peso/medidas lidas abaixo
+    $st = $pdo->prepare("SELECT id, nome, preco, estoque, peso_kg, largura_cm, altura_cm, comprimento_cm FROM produtos WHERE id = ? AND ativo = 1");
     $subtotal = 0.0; $itens = [];
     foreach ($qtd_por_produto as $pid => $qtd) {
         $st->execute([$pid]);
@@ -206,7 +208,8 @@ function loja_carregar_itens(PDO $pdo, $carrinho_in): array
         }
         $preco = round((float)$p['preco'], 2);
         $subtotal += $preco * $qtd;
-        $itens[] = ['id' => $pid, 'nome' => $p['nome'], 'preco' => $preco, 'qtd' => $qtd];
+        $itens[] = ['id' => $pid, 'nome' => $p['nome'], 'preco' => $preco, 'qtd' => $qtd,
+                    'peso_kg' => $p['peso_kg'], 'largura_cm' => $p['largura_cm'], 'altura_cm' => $p['altura_cm'], 'comprimento_cm' => $p['comprimento_cm']];
     }
     return ['ok' => true, 'erro' => '', 'subtotal' => round($subtotal, 2), 'itens' => $itens];
 }

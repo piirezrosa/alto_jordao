@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'alertas_helpers.php';
 require_once 'financeiro_helpers.php';
 
 if (!isset($_SESSION['usuario_nivel']) ||
@@ -161,7 +162,7 @@ function variacao(float $atual, float $anterior): string {
     return "<span style='color:$cor;font-weight:800;font-size:12px;'>$seta " . abs(round($pct,1)) . "%</span>";
 }
 
-$c_nao_lidos     = $pdo->query("SELECT COUNT(*) FROM alertas WHERE lido=0")->fetchColumn();
+$c_nao_lidos     = alertas_nao_lidos($pdo);
 $devolucoes_pend = $pdo->query("SELECT COUNT(*) FROM devolucoes WHERE status='pendente'")->fetchColumn();
 $estoque_critico = $pdo->query("SELECT COUNT(*) FROM produtos WHERE estoque<=3 AND ativo=1")->fetchColumn();
 $p_pendente_sb   = $pdo->query("SELECT COUNT(*) FROM pedidos WHERE status='pendente'")->fetchColumn();

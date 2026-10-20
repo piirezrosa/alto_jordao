@@ -7,8 +7,43 @@
  *                                 usa o painel, para que os alertas apareçam sem depender de cron.
  */
 
+/**
+ * Alertas são POR PERFIL: cada admin recebe só o que a SUA configuração (alerta_configuracoes) pede.
+ * Alertas antigos (usuario_id NULL, de antes desta mudança) continuam visíveis a todos.
+ * ALTER TABLE faz commit implícito: chamar fora de transação.
+ */
+function alertas_garantir_schema(PDO $pdo): void
+{
+    static $feito = false;
+    if ($feito) return;
+    $feito = true;
+    try {
+        $cols = $pdo->query("SHOW COLUMNS FROM alertas")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('usuario_id', $cols, true)) {
+            $pdo->exec("ALTER TABLE alertas ADD COLUMN usuario_id INT NULL, ADD INDEX idx_alertas_usuario (usuario_id, lido)");
+        }
+    } catch (Throwable $e) {
+        error_log('[ALERTAS SCHEMA] ' . $e->getMessage() . ' — rode code/migrations/2026_10_20_alertas_por_usuario.sql');
+    }
+}
+
+/** Condição SQL "alertas que este usuário enxerga" (id inteiro, sem risco de injeção). */
+function alertas_visiveis_sql(?int $usuario_id = null, string $alias = ''): string
+{
+    $u = (int)($usuario_id ?? ($_SESSION['usuario_id'] ?? 0));
+    $c = $alias !== '' ? $alias . '.usuario_id' : 'usuario_id';
+    return "($c = $u OR $c IS NULL)";
+}
+
+function alertas_nao_lidos(PDO $pdo, ?int $usuario_id = null): int
+{
+    alertas_garantir_schema($pdo);
+    return (int)$pdo->query("SELECT COUNT(*) FROM alertas WHERE lido = 0 AND " . alertas_visiveis_sql($usuario_id))->fetchColumn();
+}
+
 function alertas_executar_analise(PDO $pdo): array
 {
+    alertas_garantir_schema($pdo);
     $log = [];
     // ── BUSCA CONFIGURAÇÕES DE TODOS OS ADMINS ────────────────
     $padrao_cfg = [
@@ -101,24 +136,26 @@ function alertas_executar_analise(PDO $pdo): array
         string $descricao,
         string $nivel,
         string $ref_tipo,
-        int    $ref_id
+        int    $ref_id,
+        ?int   $usuario_id = null
     ): bool {
-        // Verifica se já existe alerta do mesmo tipo para o mesmo item hoje
+        // Verifica se já existe alerta do mesmo tipo, para o mesmo item e o mesmo admin, hoje
         $existe = $pdo->prepare("
             SELECT id FROM alertas
             WHERE tipo = ?
               AND referencia_tipo = ?
               AND referencia_id = ?
+              AND usuario_id <=> ?
               AND DATE(data_criacao) = CURDATE()
         ");
-        $existe->execute([$tipo, $ref_tipo, $ref_id]);
+        $existe->execute([$tipo, $ref_tipo, $ref_id, $usuario_id]);
 
         if ($existe->fetchColumn()) return false; // já gerado hoje
 
         $pdo->prepare("
-            INSERT INTO alertas (tipo, titulo, descricao, nivel, referencia_tipo, referencia_id)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ")->execute([$tipo, $titulo, $descricao, $nivel, $ref_tipo, $ref_id]);
+            INSERT INTO alertas (tipo, titulo, descricao, nivel, referencia_tipo, referencia_id, usuario_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ")->execute([$tipo, $titulo, $descricao, $nivel, $ref_tipo, $ref_id, $usuario_id]);
 
         return true;
     } }
@@ -175,7 +212,8 @@ function alertas_executar_analise(PDO $pdo): array
                         "Problemas na entrega: $prob_entrega.",
                         $nivel,
                         'produto',
-                        $p['id']
+                        $p['id'],
+                    (int)$admin['id']
                     );
                     if ($gerado) {
                         $total_alertas++;
@@ -196,7 +234,8 @@ function alertas_executar_analise(PDO $pdo): array
                         "Limiar configurado: " . $admin['limiar_taxa_devolucao'] . "%.",
                         $taxa_dev >= 20 ? 'critico' : 'aviso',
                         'produto',
-                        $p['id']
+                        $p['id'],
+                    (int)$admin['id']
                     );
                     if ($gerado) $total_alertas++;
                 }
@@ -214,7 +253,8 @@ function alertas_executar_analise(PDO $pdo): array
                         "Limiar configurado: " . $admin['limiar_nota_media'] . ".",
                         $nota <= 2 ? 'critico' : 'aviso',
                         'produto',
-                        $p['id']
+                        $p['id'],
+                    (int)$admin['id']
                     );
                     if ($gerado) $total_alertas++;
                 }
@@ -231,7 +271,8 @@ function alertas_executar_analise(PDO $pdo): array
                         "Limiar configurado: " . $admin['limiar_estoque_critico'] . " unidades.",
                         $estoque === 1 ? 'critico' : 'aviso',
                         'produto',
-                        $p['id']
+                        $p['id'],
+                    (int)$admin['id']
                     );
                     if ($gerado) $total_alertas++;
                 } elseif ($estoque === 0) {
@@ -242,7 +283,8 @@ function alertas_executar_analise(PDO $pdo): array
                         "Produto está indisponível para venda — estoque zerado.",
                         'critico',
                         'produto',
-                        $p['id']
+                        $p['id'],
+                    (int)$admin['id']
                     );
                     if ($gerado) $total_alertas++;
                 }
@@ -260,7 +302,8 @@ function alertas_executar_analise(PDO $pdo): array
                         "Receita total: R$ " . number_format($receita, 2, ',', '.') . ".",
                         'aviso',
                         'produto',
-                        $p['id']
+                        $p['id'],
+                    (int)$admin['id']
                     );
                     if ($gerado) $total_alertas++;
                 }
@@ -286,7 +329,8 @@ function alertas_executar_analise(PDO $pdo): array
                 "Data do pedido: " . date('d/m/Y', strtotime($ped['data_pedido'])) . ".",
                 $ped['dias_parado'] >= 14 ? 'critico' : 'aviso',
                 'pedido',
-                $ped['id']
+                $ped['id'],
+                    (int)$admin['id']
             );
             if ($gerado) $total_alertas++;
         }

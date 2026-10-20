@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'alertas_helpers.php';
 
 if (!isset($_SESSION['usuario_nivel']) ||
     !in_array($_SESSION['usuario_nivel'], ['admin','superadmin'])) {
@@ -79,7 +80,7 @@ if (!$cfg) {
     ];
 }
 
-$c_nao_lidos     = $pdo->query("SELECT COUNT(*) FROM alertas WHERE lido=0")->fetchColumn();
+$c_nao_lidos     = alertas_nao_lidos($pdo);
 $devolucoes_pend = $pdo->query("SELECT COUNT(*) FROM devolucoes WHERE status='pendente'")->fetchColumn();
 $estoque_critico = $pdo->query("SELECT COUNT(*) FROM produtos WHERE estoque<=3 AND ativo=1")->fetchColumn();
 $p_pendente_sb   = $pdo->query("SELECT COUNT(*) FROM pedidos WHERE status='pendente'")->fetchColumn();
@@ -139,7 +140,7 @@ $pagina_atual = 'config.alertas';
     <div class="admin-topbar">
         <div>
             <h1>Configurar Alertas</h1>
-            <p>Defina quais notificações você quer receber e com qual sensibilidade.</p>
+            <p>Defina quais notificações você quer receber e com qual sensibilidade. <strong>Estas opções valem só para o seu perfil</strong> — cada administrador tem os próprios alertas, com a própria configuração.</p>
         </div>
     </div>
 

@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'alertas_helpers.php';
 require_once 'Permissoes.php';
 
 Permissoes::init($pdo);
@@ -145,7 +146,7 @@ if (isset($_GET['editando'])) {
 }
 
 $c_nao_lidos    = 0;
-try { $c_nao_lidos = $pdo->query("SELECT COUNT(*) FROM alertas WHERE lido=0")->fetchColumn(); } catch(Exception $e){}
+try { $c_nao_lidos = alertas_nao_lidos($pdo); } catch(Exception $e){}
 $devolucoes_pend = $pdo->query("SELECT COUNT(*) FROM devolucoes WHERE status='pendente'")->fetchColumn();
 $estoque_critico = $pdo->query("SELECT COUNT(*) FROM produtos WHERE estoque<=3 AND ativo=1")->fetchColumn();
 $p_pendente_sb   = $pdo->query("SELECT COUNT(*) FROM pedidos WHERE status='pendente'")->fetchColumn();

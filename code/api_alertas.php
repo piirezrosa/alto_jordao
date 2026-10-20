@@ -13,11 +13,13 @@ if (!isset($_SESSION['usuario_id']) ||
 }
 
 $acao = $_GET['acao'] ?? 'contar';
+alertas_garantir_schema($pdo);
+$minha = alertas_visiveis_sql((int)$_SESSION['usuario_id']);   // só os alertas deste perfil
 
 // Marcar alerta como lido
 if ($acao === 'marcar_lido' && isset($_GET['id'])) {
     $pdo->prepare("
-        UPDATE alertas SET lido=1, lido_por=?, lido_em=NOW() WHERE id=?
+        UPDATE alertas SET lido=1, lido_por=?, lido_em=NOW() WHERE id=? AND $minha
     ")->execute([$_SESSION['usuario_id'], (int)$_GET['id']]);
     echo json_encode(['ok' => true]);
     exit;
@@ -26,7 +28,7 @@ if ($acao === 'marcar_lido' && isset($_GET['id'])) {
 // Marcar todos como lido
 if ($acao === 'marcar_todos_lidos') {
     $pdo->prepare("
-        UPDATE alertas SET lido=1, lido_por=?, lido_em=NOW() WHERE lido=0
+        UPDATE alertas SET lido=1, lido_por=?, lido_em=NOW() WHERE lido=0 AND $minha
     ")->execute([$_SESSION['usuario_id']]);
     echo json_encode(['ok' => true]);
     exit;
@@ -36,13 +38,13 @@ if ($acao === 'marcar_todos_lidos') {
 alertas_analise_se_necessario($pdo, 10);
 
 // Contar alertas não lidos e buscar os últimos 5
-$nao_lidos = $pdo->query("SELECT COUNT(*) FROM alertas WHERE lido=0")->fetchColumn();
+$nao_lidos = $pdo->query("SELECT COUNT(*) FROM alertas WHERE lido=0 AND $minha")->fetchColumn();
 
 $ultimos = $pdo->query("
     SELECT id, tipo, titulo, nivel, referencia_tipo, referencia_id,
            data_criacao, lido
     FROM alertas
-    WHERE lido = 0
+    WHERE lido = 0 AND $minha
     ORDER BY
         FIELD(nivel,'critico','aviso','info'),
         data_criacao DESC

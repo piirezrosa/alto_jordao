@@ -8,14 +8,17 @@ if (!isset($_SESSION['usuario_nivel']) ||
     header("Location: login.php"); exit;
 }
 
+alertas_garantir_schema($pdo);
+$minha = alertas_visiveis_sql((int)$_SESSION['usuario_id']);   // cada admin só vê/mexe nos alertas do próprio perfil
+
 // MARCAR LIDO 
 if (isset($_GET['marcar_lido'])) {
-    $pdo->prepare("UPDATE alertas SET lido=1, lido_por=?, lido_em=NOW() WHERE id=?")
+    $pdo->prepare("UPDATE alertas SET lido=1, lido_por=?, lido_em=NOW() WHERE id=? AND $minha")
         ->execute([$_SESSION['usuario_id'], (int)$_GET['marcar_lido']]);
     header("Location: admin_alertas.php"); exit;
 }
 if (isset($_GET['marcar_todos'])) {
-    $pdo->prepare("UPDATE alertas SET lido=1, lido_por=?, lido_em=NOW() WHERE lido=0")
+    $pdo->prepare("UPDATE alertas SET lido=1, lido_por=?, lido_em=NOW() WHERE lido=0 AND $minha")
         ->execute([$_SESSION['usuario_id']]);
     header("Location: admin_alertas.php?msg=todos_lidos"); exit;
 }
@@ -43,7 +46,7 @@ $pag          = max(1, (int)($_GET['pag'] ?? 1));
 $por_pag      = 20;
 $offset       = ($pag - 1) * $por_pag;
 
-$where  = ['1=1'];
+$where  = [$minha];
 $params = [];
 if ($filtro_tipo)  { $where[] = 'tipo = ?';  $params[] = $filtro_tipo; }
 if ($filtro_nivel) { $where[] = 'nivel = ?'; $params[] = $filtro_nivel; }
@@ -72,10 +75,10 @@ $alertas->execute($params);
 $alertas = $alertas->fetchAll(PDO::FETCH_ASSOC);
 
 // KPIs
-$c_critico   = $pdo->query("SELECT COUNT(*) FROM alertas WHERE nivel='critico' AND lido=0")->fetchColumn();
-$c_aviso     = $pdo->query("SELECT COUNT(*) FROM alertas WHERE nivel='aviso'   AND lido=0")->fetchColumn();
-$c_nao_lidos = $pdo->query("SELECT COUNT(*) FROM alertas WHERE lido=0")->fetchColumn();
-$c_hoje      = $pdo->query("SELECT COUNT(*) FROM alertas WHERE DATE(data_criacao)=CURDATE()")->fetchColumn();
+$c_critico   = $pdo->query("SELECT COUNT(*) FROM alertas WHERE nivel='critico' AND lido=0 AND $minha")->fetchColumn();
+$c_aviso     = $pdo->query("SELECT COUNT(*) FROM alertas WHERE nivel='aviso'   AND lido=0 AND $minha")->fetchColumn();
+$c_nao_lidos = $pdo->query("SELECT COUNT(*) FROM alertas WHERE lido=0 AND $minha")->fetchColumn();
+$c_hoje      = $pdo->query("SELECT COUNT(*) FROM alertas WHERE DATE(data_criacao)=CURDATE() AND $minha")->fetchColumn();
 
 // Badges sidebar
 $devolucoes_pend = $pdo->query("SELECT COUNT(*) FROM devolucoes WHERE status='pendente'")->fetchColumn();

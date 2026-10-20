@@ -9,12 +9,13 @@ $sb_estoque_critico = 0;
 $sb_alertas         = 0;
 
 if (isset($pdo)) {
+    require_once __DIR__ . '/alertas_helpers.php';
     try {
         // Buscas rápidas apenas para alimentar os Badges da Sidebar
         $sb_p_pendente      = (int) $pdo->query("SELECT COUNT(*) FROM pedidos WHERE status='pendente'")->fetchColumn();
         $sb_devolucoes_pend = (int) $pdo->query("SELECT COUNT(*) FROM devolucoes WHERE status='pendente'")->fetchColumn();
         $sb_estoque_critico = (int) $pdo->query("SELECT COUNT(*) FROM produtos WHERE estoque<=3 AND ativo=1")->fetchColumn();
-        $sb_alertas         = (int) $pdo->query("SELECT COUNT(*) FROM alertas WHERE lido=0")->fetchColumn();
+        $sb_alertas         = alertas_nao_lidos($pdo);
     } catch (PDOException $e) {
         // Silencia ou trata o erro para não quebrar o layout caso o banco falhe
     }

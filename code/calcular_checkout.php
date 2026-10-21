@@ -74,6 +74,7 @@ saida([
     'frete_servico' => $t['frete_servico'],
     'frete_nome'  => $t['frete_nome'],
     'opcoes_frete'=> $t['opcoes_frete'],
+    'frete_fonte' => $t['frete_fonte'],
     'frete_motivo'=> $t['frete_motivo'],
     'frete_falta' => $t['frete_falta'],
     'prazo_dias'  => $t['prazo_dias'],

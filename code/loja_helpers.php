@@ -167,6 +167,7 @@ function loja_calcular_totais(PDO $pdo, float $subtotal, string $metodo, ?array 
         'frete_transportadora' => $sel['transportadora'] ?? '',
         'frete_motivo'   => $sel ? ($sel['gratis'] ? 'gratis' : 'pago') : 'indefinido',
         'opcoes_frete'   => $cot['opcoes'],
+        'frete_fonte'    => $cot['fonte'] ?? '',
         'frete_falta'    => ($sel && $gratis_ativo && !$sel['gratis'] && $base < $gratis_min) ? round($gratis_min - $base, 2) : 0.0,
         'prazo_dias'     => $sel ? (int)$sel['prazo'] : 0,
         'total'          => $total,

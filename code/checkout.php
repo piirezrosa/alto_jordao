@@ -391,7 +391,8 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
                 <span id="valorFrete" style="font-weight:800;">—</span>
             </div>
             <div id="opcoesFrete" class="opcoes-frete"></div>
-            <div id="prazoFrete" style="font-size:11px; color:#999; margin:-4px 0 10px;"></div>
+            <div id="prazoFrete" style="font-size:11px; color:#999; margin:-4px 0 4px;"></div>
+            <div id="fonteFrete" style="font-size:11px; margin:0 0 10px;"></div>
             <div class="dica-frete" id="dicaFrete"></div>
             <div class="desconto-pix" id="descontoPix">
                 🎉 Desconto PIX 5%: <span id="valorDesconto"></span>
@@ -550,6 +551,15 @@ function renderizarTotais(r) {
     $('prazoFrete').textContent = r.frete_definido
         ? (r.prazo_dias ? 'Entrega em até ' + r.prazo_dias + ' dias úteis' : '')
         : (r.frete_erro || '');
+
+    const fonte = $('fonteFrete');
+    if (r.frete_definido && r.frete_fonte === 'melhorenvio') {
+        fonte.textContent = '✔ Frete calculado em tempo real (Melhor Envio)'; fonte.style.color = '#27ae60';
+    } else if (r.frete_definido && r.frete_fonte === 'tabela_fallback') {
+        fonte.textContent = '⚠ Valor estimado: a cotação online está indisponível no momento'; fonte.style.color = '#b45309';
+    } else {
+        fonte.textContent = '';
+    }
 
     const dica = $('dicaFrete');
     if (r.frete_falta > 0) {

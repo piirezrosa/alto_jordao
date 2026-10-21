@@ -188,24 +188,35 @@ function frete_cotar(PDO $pdo, string $cep, array $itens, float $base): array
     $opcoes    = [];
     $fonte     = 'tabela';
 
-    // 1) Melhor Envio (se ligado e com token): cotação real; respeita os interruptores Correios/Jadlog
-    if (loja_cfg($pdo, 'frete_melhorenvio_ativo', '0') === '1' && MelhorEnvio::configurado()) {
+    // 1) Melhor Envio: cotação real. Fica LIGADO por padrão assim que o token existe no .env
+    //    (o admin pode desligar). Respeita os interruptores Correios/Jadlog/outras.
+    $me_ativo = MelhorEnvio::configurado()
+        && loja_cfg($pdo, 'frete_melhorenvio_ativo', '1') === '1';
+    if ($me_ativo) {
         $r = frete_cotar_melhorenvio($pdo, $cep, $norm);
-        if (!$r['ok']) error_log('[FRETE] Melhor Envio indisponível, usando tabela: ' . $r['erro']);
-        foreach ($r['servicos'] as $sv) {
-            $emp = strtolower($sv['empresa']);
-            if (strpos($emp, 'correios') !== false)     $ligado = loja_cfg($pdo, 'frete_correios_ativo', '1') === '1';
-            elseif (strpos($emp, 'jadlog') !== false)   $ligado = loja_cfg($pdo, 'frete_jadlog_ativo', '0') === '1';
-            else                                        $ligado = loja_cfg($pdo, 'frete_melhorenvio_outras', '0') === '1';
-            if (!$ligado) continue;
-            $opcoes[] = ['id' => 'me' . $sv['id'], 'transportadora' => $sv['empresa'] !== '' ? $sv['empresa'] : 'Melhor Envio',
-                         'nome' => $sv['nome'], 'preco' => $sv['preco'], 'prazo' => $sv['prazo'], 'gratis' => false];
+        frete_me_registrar($pdo, $r['ok'], $r['erro']);
+        if ($r['ok']) {
+            $fonte = 'melhorenvio';   // a API respondeu: ela é a fonte, mesmo que nenhuma opção esteja habilitada
+            foreach ($r['servicos'] as $sv) {
+                $emp = strtolower($sv['empresa']);
+                if (strpos($emp, 'correios') !== false)     $ligado = loja_cfg($pdo, 'frete_correios_ativo', '1') === '1';
+                elseif (strpos($emp, 'jadlog') !== false)   $ligado = loja_cfg($pdo, 'frete_jadlog_ativo', '0') === '1';
+                else                                        $ligado = loja_cfg($pdo, 'frete_melhorenvio_outras', '0') === '1';
+                if (!$ligado) continue;
+                $opcoes[] = ['id' => 'me' . $sv['id'], 'transportadora' => $sv['empresa'] !== '' ? $sv['empresa'] : 'Melhor Envio',
+                             'nome' => $sv['nome'], 'preco' => $sv['preco'], 'prazo' => $sv['prazo'], 'gratis' => false];
+            }
+        } else {
+            error_log('[FRETE] Melhor Envio indisponível: ' . $r['erro']);
+            if (loja_cfg($pdo, 'frete_melhorenvio_fallback', '1') !== '1') {
+                return $falha('Não foi possível calcular o frete agora. Tente novamente em instantes.');
+            }
+            $fonte = 'tabela_fallback';   // API fora do ar: estimativa pela tabela, e o cliente é avisado
         }
-        if ($opcoes) $fonte = 'melhorenvio';
     }
 
-    // 2) Tabela própria (padrão, ou plano B se a API falhou / não devolveu serviços)
-    if (!$opcoes) {
+    // 2) Tabela própria: modo padrão sem Melhor Envio, ou plano B quando a API falhou
+    if ($fonte !== 'melhorenvio') {
         $kg_extra = max(0, (int)ceil($peso) - 1);
         foreach (FRETE_SERVICOS as $id => $s) {
             if (loja_cfg($pdo, $s['toggle'], $id === 'jadlog' ? '0' : '1') !== '1') continue;
@@ -219,6 +230,9 @@ function frete_cotar(PDO $pdo, string $cep, array $itens, float $base): array
         $opcoes[] = ['id' => 'fixo', 'transportadora' => 'Correios', 'nome' => 'Frete fixo',
                      'preco' => round(frete_num($pdo, 'frete_frete_fixo_valor', 15.0), 2),
                      'prazo' => max(1, (int)loja_cfg($pdo, 'frete_prazo_padrao', '5')), 'gratis' => false];
+    }
+    if (!$opcoes && $fonte === 'melhorenvio') {
+        return $falha('Nenhuma transportadora disponível para este CEP.');
     }
     if (!$opcoes) {   // nenhuma forma de entrega configurada: mantém o comportamento antigo (frete grátis)
         $opcoes[] = ['id' => 'gratis', 'transportadora' => 'Correios', 'nome' => 'Frete grátis', 'preco' => 0.0,
@@ -263,4 +277,18 @@ function frete_salvar_dimensoes(PDO $pdo, int $produto_id, array $dim): void
     frete_garantir_schema($pdo);
     $pdo->prepare("UPDATE produtos SET peso_kg = ?, largura_cm = ?, altura_cm = ?, comprimento_cm = ? WHERE id = ?")
         ->execute([$dim['peso_kg'], $dim['largura_cm'], $dim['altura_cm'], $dim['comprimento_cm'], $produto_id]);
+}
+
+/**
+ * Guarda o último resultado da API (para o admin ver por que o checkout caiu na tabela).
+ * Só grava quando muda ou a cada 10 min — não escreve no banco a cada cotação.
+ */
+function frete_me_registrar(PDO $pdo, bool $ok, string $erro): void
+{
+    try {
+        $atual = json_decode((string)loja_cfg($pdo, 'frete_me_status', ''), true);
+        if (is_array($atual) && ($atual['ok'] ?? null) === $ok && ($atual['erro'] ?? '') === $erro && (time() - (int)($atual['t'] ?? 0)) < 600) return;
+        $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('frete_me_status', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)")
+            ->execute([json_encode(['t' => time(), 'ok' => $ok, 'erro' => mb_substr($erro, 0, 200)], JSON_UNESCAPED_UNICODE)]);
+    } catch (Throwable $e) { /* diagnóstico nunca derruba a cotação */ }
 }

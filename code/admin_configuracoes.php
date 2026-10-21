@@ -707,10 +707,26 @@ $pagina_atual = 'configuracoes';
                         </div>
                         <label class="toggle-switch">
                             <input type="hidden" name="melhorenvio_ativo" value="0">
-                            <input type="checkbox" name="melhorenvio_ativo" value="1" <?= cfg($pdo,'frete_melhorenvio_ativo','0')==='1'?'checked':''?>>
+                            <input type="checkbox" name="melhorenvio_ativo" value="1" <?= cfg($pdo,'frete_melhorenvio_ativo','1')==='1'?'checked':''?>>
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
+                    <div class="toggle-row">
+                        <div class="toggle-info">
+                            <strong>Se a API do Melhor Envio falhar, usar a tabela como estimativa</strong>
+                            <span>Ligado: o cliente vê um valor estimado (com aviso) e consegue comprar. Desligado: o checkout pede para tentar de novo.</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="hidden" name="melhorenvio_fallback" value="0">
+                            <input type="checkbox" name="melhorenvio_fallback" value="1" <?= cfg($pdo,'frete_melhorenvio_fallback','1')==='1'?'checked':''?>>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <?php $me_st = json_decode((string)cfg($pdo,'frete_me_status',''), true); if (is_array($me_st)): ?>
+                    <p style="font-size:12px;margin:-4px 0 14px;color:<?= !empty($me_st['ok']) ? '#2e7d32' : '#c62828' ?>;">
+                        Última cotação real (<?= date('d/m H:i', (int)$me_st['t']) ?>): <?= !empty($me_st['ok']) ? '✔ funcionando' : '✖ falhou — ' . htmlspecialchars($me_st['erro'] ?? '') ?>
+                    </p>
+                    <?php endif; ?>
                     <div class="toggle-row">
                         <div class="toggle-info">
                             <strong>Oferecer também outras transportadoras do Melhor Envio</strong>

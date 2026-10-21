@@ -194,24 +194,35 @@ function frete_cotar(PDO $pdo, string $cep, array $itens, float $base): array
         && loja_cfg($pdo, 'frete_melhorenvio_ativo', '1') === '1';
     if ($me_ativo) {
         $r = frete_cotar_melhorenvio($pdo, $cep, $norm);
-        frete_me_registrar($pdo, $r['ok'], $r['erro']);
+        $motivo_falha = '';
         if ($r['ok']) {
-            $fonte = 'melhorenvio';   // a API respondeu: ela é a fonte, mesmo que nenhuma opção esteja habilitada
+            $recusados = [];
             foreach ($r['servicos'] as $sv) {
                 $emp = strtolower($sv['empresa']);
                 if (strpos($emp, 'correios') !== false)     $ligado = loja_cfg($pdo, 'frete_correios_ativo', '1') === '1';
                 elseif (strpos($emp, 'jadlog') !== false)   $ligado = loja_cfg($pdo, 'frete_jadlog_ativo', '0') === '1';
                 else                                        $ligado = loja_cfg($pdo, 'frete_melhorenvio_outras', '0') === '1';
-                if (!$ligado) continue;
+                if (!$ligado) { $recusados[] = $sv['nome']; continue; }
                 $opcoes[] = ['id' => 'me' . $sv['id'], 'transportadora' => $sv['empresa'] !== '' ? $sv['empresa'] : 'Melhor Envio',
                              'nome' => $sv['nome'], 'preco' => $sv['preco'], 'prazo' => $sv['prazo'], 'gratis' => false];
             }
+            if ($opcoes) {
+                $fonte = 'melhorenvio';
+            } elseif ($recusados) {
+                $motivo_falha = 'A API devolveu serviços (' . implode(', ', $recusados) . ') mas nenhum está habilitado nos interruptores Correios / Jadlog / outras transportadoras.';
+            } else {
+                $motivo_falha = 'A API respondeu, mas sem nenhum serviço com preço para este CEP/medidas.';
+            }
         } else {
-            error_log('[FRETE] Melhor Envio indisponível: ' . $r['erro']);
+            $motivo_falha = $r['erro'];
+        }
+        frete_me_registrar($pdo, $motivo_falha === '', $motivo_falha);
+        if ($motivo_falha !== '') {
+            error_log('[FRETE] Melhor Envio sem opções: ' . $motivo_falha);
             if (loja_cfg($pdo, 'frete_melhorenvio_fallback', '1') !== '1') {
                 return $falha('Não foi possível calcular o frete agora. Tente novamente em instantes.');
             }
-            $fonte = 'tabela_fallback';   // API fora do ar: estimativa pela tabela, e o cliente é avisado
+            $fonte = 'tabela_fallback';   // estimativa pela tabela, e o cliente é avisado
         }
     }
 
@@ -230,9 +241,6 @@ function frete_cotar(PDO $pdo, string $cep, array $itens, float $base): array
         $opcoes[] = ['id' => 'fixo', 'transportadora' => 'Correios', 'nome' => 'Frete fixo',
                      'preco' => round(frete_num($pdo, 'frete_frete_fixo_valor', 15.0), 2),
                      'prazo' => max(1, (int)loja_cfg($pdo, 'frete_prazo_padrao', '5')), 'gratis' => false];
-    }
-    if (!$opcoes && $fonte === 'melhorenvio') {
-        return $falha('Nenhuma transportadora disponível para este CEP.');
     }
     if (!$opcoes) {   // nenhuma forma de entrega configurada: mantém o comportamento antigo (frete grátis)
         $opcoes[] = ['id' => 'gratis', 'transportadora' => 'Correios', 'nome' => 'Frete grátis', 'preco' => 0.0,

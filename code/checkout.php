@@ -542,7 +542,10 @@ function renderizarTotais(r) {
 
     const frete = $('valorFrete');
     if (!r.frete_definido) {
-        frete.textContent = 'Informe o CEP'; frete.style.color = '#b45309'; frete.style.fontSize = '11px';
+        // Só pede o CEP se ele realmente não foi informado; qualquer outro motivo é mostrado como indisponível
+        const cepOk = document.getElementById('campo-cep').value.replace(/\D/g,'').length === 8;
+        frete.textContent = cepOk ? 'Indisponível' : 'Informe o CEP';
+        frete.style.color = '#b45309'; frete.style.fontSize = '11px';
     } else if (r.frete > 0) {
         frete.textContent = fmtBRL(r.frete); frete.style.color = '#000'; frete.style.fontSize = '14px';
     } else {
@@ -551,6 +554,8 @@ function renderizarTotais(r) {
     $('prazoFrete').textContent = r.frete_definido
         ? (r.prazo_dias ? 'Entrega em até ' + r.prazo_dias + ' dias úteis' : '')
         : (r.frete_erro || '');
+    $('prazoFrete').style.color = r.frete_definido ? '#999' : '#b45309';
+    $('prazoFrete').style.fontWeight = r.frete_definido ? '400' : '700';
 
     const fonte = $('fonteFrete');
     if (r.frete_definido && r.frete_fonte === 'melhorenvio') {

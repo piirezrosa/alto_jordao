@@ -92,8 +92,13 @@ class MelhorEnvio
         }
 
         $servicos = [];
+        $descartados = [];
         foreach ($d as $s) {
-            if (!is_array($s) || !empty($s['error'])) continue;               // serviço indisponível p/ esta rota
+            if (!is_array($s)) continue;
+            if (!empty($s['error'])) {                                        // serviço indisponível p/ esta rota
+                $descartados[] = trim(($s['name'] ?? ('#' . ($s['id'] ?? '?'))) . ': ' . (is_string($s['error']) ? $s['error'] : json_encode($s['error'], JSON_UNESCAPED_UNICODE)));
+                continue;
+            }
             $preco = $s['custom_price'] ?? $s['price'] ?? null;               // custom_* = com as regras da conta
             $prazo = $s['custom_delivery_time'] ?? $s['delivery_time'] ?? null;
             if (!isset($s['id']) || $preco === null || !is_numeric($preco) || (float)$preco < 0) continue;
@@ -107,6 +112,8 @@ class MelhorEnvio
                 'prazo'   => max(1, (int)$prazo),
             ];
         }
-        return ['ok' => true, 'erro' => '', 'servicos' => $servicos];
+        $extra = $descartados ? implode(' | ', array_slice($descartados, 0, 4)) : '';
+        if (!$servicos && !$descartados) $extra = 'Resposta sem serviços: ' . mb_substr($resp, 0, 200);
+        return ['ok' => true, 'erro' => '', 'servicos' => $servicos, 'descartados' => $extra];
     }
 }

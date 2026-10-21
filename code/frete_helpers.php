@@ -149,7 +149,7 @@ function frete_cotar_melhorenvio(PDO $pdo, string $cep, array $itens_norm): arra
     $chave = md5(json_encode([$origem, $cep, $itens_norm, MelhorEnvio::sandbox()]));
     $agora = time();
     if (isset($_SESSION['frete_cache'][$chave]) && ($agora - $_SESSION['frete_cache'][$chave]['t']) < 900) {
-        return ['ok' => true, 'erro' => '', 'servicos' => $_SESSION['frete_cache'][$chave]['servicos']];
+        return ['ok' => true, 'erro' => '', 'servicos' => $_SESSION['frete_cache'][$chave]['servicos'], 'descartados' => ''];
     }
     $r = MelhorEnvio::cotar($origem, $cep, $itens_norm);
     if ($r['ok'] && $r['servicos'] && isset($_SESSION)) {
@@ -211,7 +211,8 @@ function frete_cotar(PDO $pdo, string $cep, array $itens, float $base): array
             } elseif ($recusados) {
                 $motivo_falha = 'A API devolveu serviços (' . implode(', ', $recusados) . ') mas nenhum está habilitado nos interruptores Correios / Jadlog / outras transportadoras.';
             } else {
-                $motivo_falha = 'A API respondeu, mas sem nenhum serviço com preço para este CEP/medidas.';
+                $motivo_falha = 'A API respondeu, mas sem nenhum serviço com preço para este CEP/medidas.'
+                    . (!empty($r['descartados']) ? ' Detalhe da API: ' . $r['descartados'] : '');
             }
         } else {
             $motivo_falha = $r['erro'];

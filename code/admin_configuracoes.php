@@ -692,11 +692,15 @@ $pagina_atual = 'configuracoes';
                         $me_token = MelhorEnvio::configurado();
                         $me_teste = $_SESSION['me_teste'] ?? null; unset($_SESSION['me_teste']);
                     ?>
-                    <div style="background:<?= $me_token ? '#e8f5e9' : '#fff8e1' ?>;border-radius:12px;padding:12px 14px;font-size:13px;margin-bottom:14px;">
-                        <?php if ($me_token): ?>
-                            ✔ Token encontrado no <code>.env</code> — ambiente: <strong><?= MelhorEnvio::sandbox() ? 'SANDBOX (testes)' : 'PRODUÇÃO' ?></strong>.
+                    <?php $me_diag = frete_me_diagnostico($pdo); ?>
+                    <div style="background:<?= $me_diag['usando'] ? '#e8f5e9' : '#fdecea' ?>;border-radius:12px;padding:12px 14px;font-size:13px;margin-bottom:14px;">
+                        <?php if ($me_diag['usando']): ?>
+                            ✔ <strong>O checkout está usando a cotação do Melhor Envio</strong> — ambiente: <strong><?= MelhorEnvio::sandbox() ? 'SANDBOX (testes)' : 'PRODUÇÃO' ?></strong>.
                         <?php else: ?>
-                            ⚠ Token não configurado. Adicione <code>MELHORENVIO_TOKEN</code>, <code>MELHORENVIO_SANDBOX</code> e <code>MELHORENVIO_EMAIL</code> ao arquivo <code>.env</code> (veja <code>.env.example</code>). O token nunca é guardado no banco nem no GitHub.
+                            ✖ <strong>O checkout NÃO está usando o Melhor Envio agora</strong> (por isso o valor vem da tabela):
+                            <ul style="margin:6px 0 0 18px;">
+                                <?php foreach ($me_diag['problemas'] as $pr): ?><li><?= $pr ?></li><?php endforeach; ?>
+                            </ul>
                         <?php endif; ?>
                     </div>
 

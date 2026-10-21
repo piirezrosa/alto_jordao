@@ -7,6 +7,9 @@
  * Formato do .env:  CHAVE=valor   (linhas com # são comentários; aspas opcionais)
  */
 if (!function_exists('env')) {
+    /** Caminho esperado do arquivo .env (para diagnóstico). */
+    function env_caminho(): string { return __DIR__ . DIRECTORY_SEPARATOR . '.env'; }
+
     function env(string $chave, $padrao = null)
     {
         static $arquivo = null;

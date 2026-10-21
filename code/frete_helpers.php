@@ -292,3 +292,28 @@ function frete_me_registrar(PDO $pdo, bool $ok, string $erro): void
             ->execute([json_encode(['t' => time(), 'ok' => $ok, 'erro' => mb_substr($erro, 0, 200)], JSON_UNESCAPED_UNICODE)]);
     } catch (Throwable $e) { /* diagnóstico nunca derruba a cotação */ }
 }
+
+/**
+ * Diagnóstico: o checkout está usando a cotação do Melhor Envio? Se não, por quê (sem depender de erro de API).
+ * @return array{usando:bool, problemas:string[]}
+ */
+function frete_me_diagnostico(PDO $pdo): array
+{
+    $p = [];
+    $arq = env_caminho();
+    if (!is_file($arq)) {
+        $p[] = "O arquivo <code>.env</code> não foi encontrado em <code>" . htmlspecialchars($arq) . "</code> (confira o nome: não pode ser <code>.env.txt</code> nem <code>.env.example</code>).";
+    } elseif (!is_readable($arq)) {
+        $p[] = "O arquivo <code>.env</code> existe mas o servidor não consegue lê-lo (permissões).";
+    }
+    if (!MelhorEnvio::configurado()) {
+        $p[] = "<code>MELHORENVIO_TOKEN</code> está vazio ou ausente no <code>.env</code>" . (is_file($arq) ? " (reinicie o Apache depois de editar o arquivo)." : ".");
+    }
+    if (loja_cfg($pdo, 'frete_melhorenvio_ativo', '1') !== '1') {
+        $p[] = "O interruptor <strong>“Usar cotação real do Melhor Envio”</strong> está DESLIGADO aqui nas configurações — ligue-o e salve.";
+    }
+    if (strlen(preg_replace('/\D/', '', (string)loja_cfg($pdo, 'frete_cep_origem', ''))) !== 8) {
+        $p[] = "O <strong>CEP de origem</strong> não está preenchido/salvo (a API precisa dele).";
+    }
+    return ['usando' => !$p, 'problemas' => $p];
+}

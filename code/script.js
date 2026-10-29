@@ -100,7 +100,7 @@ function adicionarAoCarrinho(p) {
     if (index > -1) {
         carrinho[index].qtd += 1;
     } else {
-        carrinho.push({ ...p, cartId: cartId, qtd: 1 });
+        carrinho.push({ ...p, img: p.img || p.imagem || '', cartId: cartId, qtd: 1 });
     }
 
     sessionStorage.setItem('fashion_cart', JSON.stringify(carrinho));
@@ -137,7 +137,7 @@ function renderizarCarrinho() {
 
         return `
             <div class="cart-item" style="display: flex; gap: 15px; padding: 20px 0; border-bottom: 1px solid #f2f2f2; align-items: center;">
-                <img src="${resolverCaminhoImagem(item.img)}" style="width:70px; height:90px; object-fit:cover; background:#f9f9f9;">
+                <img src="${resolverCaminhoImagem(item.img || item.imagem)}" style="width:70px; height:90px; object-fit:cover; background:#f9f9f9;">
                 <div style="flex: 1;">
                     <h5 style="margin: 0; font-size: 11px; font-weight:900; text-transform:uppercase; letter-spacing:1px;">${item.nome}</h5>
                     <p style="margin:4px 0; font-size:10px; color:#aaa; font-weight:700; text-transform:uppercase;">${item.opcoes}</p>

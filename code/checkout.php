@@ -452,11 +452,17 @@ let freteDefinido = false;   // true quando o servidor conseguiu cotar o frete p
 
 const fmtBRL = v => 'R$ ' + Number(v).toLocaleString('pt-br', {minimumFractionDigits:2, maximumFractionDigits:2});
 
+// O carrinho guarda só o nome do arquivo (ex.: abc.webp); monta o caminho completo
+function imgCheckout(raw) {
+    if (!raw || raw === 'undefined') return 'img/placeholder.jpg';
+    return (/^(https?:|data:)/.test(raw) || raw.includes('/')) ? raw : 'img/produtos/' + raw;
+}
+
 function renderizarResumo() {
     const lista = document.getElementById('listaCheckout');
     lista.innerHTML = carrinhoGlobal.map(item => {
         return `<div class="item-checkout">
-            <img src="${item.img||''}" alt="${item.nome}" onerror="this.style.opacity='0'">
+            <img src="${imgCheckout(item.img || item.imagem)}" alt="${item.nome}" onerror="this.style.opacity='0'">
             <div class="item-info">
                 <h4>${item.nome}</h4>
                 <p>${item.tamanho_escolhido||''} ${item.cor_escolhida ? '| '+item.cor_escolhida : ''}</p>

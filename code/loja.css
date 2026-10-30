@@ -207,3 +207,26 @@ body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: anti
 @media (max-width: 760px) { .aj-footer-cols { grid-template-columns: 1fr 1fr; } .aj-footer-brand { grid-column: 1 / -1; } }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ── Listagens (masculino, feminino, kids, lançamentos, ofertas, busca) ─ */
+.aj-pagehead { padding: clamp(36px, 6vw, 72px) 0 8px; }
+.aj-pagehead h1 { font-size: clamp(2.4rem, 6vw, 4.6rem); font-weight: 900; letter-spacing: -.045em; line-height: 1; }
+.aj-pagehead p { margin-top: 14px; font-size: 17px; line-height: 1.5; color: var(--aj-soft); max-width: 52ch; }
+.aj-search { display: flex; gap: 8px; margin-top: 24px; max-width: 520px; }
+.aj-search input {
+    flex: 1; min-width: 0; padding: 14px 20px; border-radius: 50px; border: 1px solid var(--aj-line);
+    background: var(--aj-wash); font: 500 15px 'Inter', sans-serif; color: var(--aj-ink); outline: none; transition: border-color .2s, background .2s;
+}
+.aj-search input:focus { border-color: var(--aj-ink); background: #fff; }
+.aj-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 28px 0 24px; }
+.aj-count { font-size: 14px; color: var(--aj-soft); font-weight: 500; }
+.aj-sort { position: relative; }
+.aj-sort select {
+    appearance: none; -webkit-appearance: none; padding: 11px 40px 11px 18px; border-radius: 50px; border: 1px solid var(--aj-line);
+    background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E") no-repeat right 16px center;
+    font: 600 13px 'Inter', sans-serif; color: var(--aj-ink); cursor: pointer;
+}
+.aj-sort select:hover { border-color: var(--aj-ink); }
+.aj-emptybox { grid-column: 1 / -1; text-align: center; padding: 72px 16px; border: 1px dashed var(--aj-line); border-radius: 32px; }
+.aj-emptybox strong { display: block; font-size: 18px; margin-bottom: 8px; }
+.aj-emptybox p { color: var(--aj-soft); font-size: 15px; margin-bottom: 22px; }

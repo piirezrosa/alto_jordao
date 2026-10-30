@@ -28,6 +28,9 @@ $aj_nav   = ['ofertas.php' => 'Ofertas', 'lancamentos.php' => 'Lançamentos', 'm
             <?php if (isset($_SESSION['usuario_id'])): ?>
                 <span class="aj-hello">Oi, <?= htmlspecialchars(explode(' ', $_SESSION['usuario_nome'] ?? '')[0]) ?></span>
             <?php endif; ?>
+            <a class="aj-ico" href="busca.php" aria-label="Buscar">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+            </a>
             <a class="aj-ico" href="<?= isset($_SESSION['usuario_id']) ? 'usuario.php' : 'login.php' ?>" aria-label="Minha conta">
                 <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
             </a>

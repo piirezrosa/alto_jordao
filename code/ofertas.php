@@ -8,6 +8,6 @@ try {
 $produtos = $query->fetchAll(PDO::FETCH_ASSOC);
 
 $aj_titulo = 'Ofertas';
-$aj_sub    = 'Peças com preço reduzido. O desconto aparece em cada produto.';
+$aj_sub    = 'O desconto que você procura está aqui, aproveite as melhores ofertas da loja.';
 $aj_vazio  = 'Não há ofertas no momento.';
 include 'listagem_view.php';

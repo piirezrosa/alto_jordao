@@ -23,7 +23,7 @@ $destaque = $produtos[0] ?? null;
             <div class="aj-hero-card">
                 <div class="aj-hero-copy">
                     <h1>Nova<br>coleção</h1>
-                    <p>Peças novas chegando toda semana. No PIX você paga 5% menos.</p>
+                    <p>As principais peças da temporada. No PIX você paga 5% menos.</p>
                     <div class="aj-hero-cta">
                         <a class="aj-btn" href="lancamentos.php">Ver lançamentos</a>
                         <a class="aj-btn aj-btn--ghost" href="ofertas.php">Ver ofertas</a>

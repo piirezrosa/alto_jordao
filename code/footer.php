@@ -33,7 +33,7 @@
         </div>
         <div class="aj-footer-base">
             <span>&copy; <?= date('Y') ?> Alto Jordão. Todos os direitos reservados.</span>
-            <span>PIX com 5% de desconto</span>
+            <span>A moda das alturas que te acompanha em todo momento.</span>
         </div>
     </div>
 </footer>

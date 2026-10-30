@@ -125,7 +125,7 @@ function renderizarCarrinho() {
     if (!container) return;
     
     if (carrinho.length === 0) {
-        container.innerHTML = '<div style="text-align:center; padding:40px; color:#bbb; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Sua sacola está vazia.</div>';
+        container.innerHTML = '<div class="aj-empty"><strong>Sua sacola está vazia</strong>Escolha uma peça e ela aparece aqui.</div>';
         if(totalElemento) totalElemento.innerText = "R$ 0,00";
         return;
     }
@@ -136,14 +136,14 @@ function renderizarCarrinho() {
         totalGeral += (precoNum * qtdNum);
 
         return `
-            <div class="cart-item" style="display: flex; gap: 15px; padding: 20px 0; border-bottom: 1px solid #f2f2f2; align-items: center;">
-                <img src="${resolverCaminhoImagem(item.img || item.imagem)}" style="width:70px; height:90px; object-fit:cover; background:#f9f9f9;">
-                <div style="flex: 1;">
-                    <h5 style="margin: 0; font-size: 11px; font-weight:900; text-transform:uppercase; letter-spacing:1px;">${item.nome}</h5>
-                    <p style="margin:4px 0; font-size:10px; color:#aaa; font-weight:700; text-transform:uppercase;">${item.opcoes}</p>
-                    <span style="font-weight: 800; font-size: 13px; color:#000;">${qtdNum}x R$ ${precoNum.toLocaleString('pt-br', {minimumFractionDigits: 2})}</span>
+            <div class="aj-cart-item">
+                <img src="${resolverCaminhoImagem(item.img || item.imagem)}" alt="" onerror="this.style.opacity='0'">
+                <div>
+                    <h5>${item.nome}</h5>
+                    <p>${item.opcoes || ''}</p>
+                    <strong>${qtdNum} x R$ ${precoNum.toLocaleString('pt-br', {minimumFractionDigits: 2})}</strong>
                 </div>
-                <button onclick="removerDoCarrinho('${item.cartId}')" style="background:none; border:none; color:#ddd; cursor:pointer; font-size:22px; padding:10px;">&times;</button>
+                <button type="button" aria-label="Remover ${item.nome}" onclick="removerDoCarrinho('${item.cartId}')">&times;</button>
             </div>
         `;
     }).join('');
@@ -211,12 +211,16 @@ function toggleFavorito(produto) {
     atualizarInterfaceFavoritos();
 }
 
+const ICONE_CORACAO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-9.2-9.4C1.7 7.8 3.7 4.5 7 4.5c2 0 3.5 1.1 5 3 1.5-1.9 3-3 5-3 3.3 0 5.3 3.3 4.2 6.6-1.7 4.8-9.2 9.4-9.2 9.4z"/></svg>';
+
 function atualizarInterfaceFavoritos() {
     const favoritos = JSON.parse(localStorage.getItem('fashion_favs')) || [];
     document.querySelectorAll('.btn-fav').forEach(btn => {
         const idProd = btn.getAttribute('data-id'); 
         const isFav = favoritos.some(item => String(item.id) === String(idProd));
-        btn.innerHTML = isFav ? '❤️' : '🤍';
+        btn.innerHTML = ICONE_CORACAO;
+        btn.classList.toggle('is-fav', isFav);
+        btn.setAttribute('aria-pressed', isFav ? 'true' : 'false');
     });
 }
 

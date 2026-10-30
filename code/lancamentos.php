@@ -96,10 +96,7 @@ function getCaminhoImagemLancamento($img) {
         </section>
     </main>
 
-    <footer style="background: #000; color: #fff; padding: 60px 20px; text-align: center; margin-top: 50px;">
-        <h2 style="letter-spacing: 3px; font-size: 1.2rem;">ALTO JORDÃO</h2>
-        <p style="font-size: 10px; opacity: 0.5;">&copy; 2026 Alto Jordão Originals.</p>
-    </footer>
+    <?php include 'footer.php'; ?>
 
     <script src="script.js?v=<?= time(); ?>"></script>
 </body>

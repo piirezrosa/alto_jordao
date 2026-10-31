@@ -381,3 +381,137 @@ body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: anti
     .aj-checkout .metodo-card { flex-direction: row; align-items: center; gap: 14px; }
     .aj-checkout .metodo-card .sub { margin: 0 0 0 auto; }
 }
+
+/* ── Formulários, painéis e avisos (login, cadastro, conta) ─ */
+.aj-form .aj-field { margin-bottom: 16px; position: relative; }
+.aj-form label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.aj-form input, .aj-form select, .aj-form textarea {
+    width: 100%; padding: 15px 18px; border: 1px solid var(--aj-line); border-radius: 16px; background: var(--aj-wash);
+    font: 500 15px 'Inter', sans-serif; color: var(--aj-ink); outline: none; transition: border-color .2s, background .2s; box-sizing: border-box;
+}
+.aj-form input:focus, .aj-form select:focus, .aj-form textarea:focus { border-color: var(--aj-ink); background: #fff; }
+.aj-form input[readonly] { color: var(--aj-soft); cursor: not-allowed; }
+.aj-form .aj-hint { font-size: 12px; color: var(--aj-mute); margin-top: 6px; }
+.aj-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+.aj-pass-toggle { position: absolute; right: 8px; top: 33px; border: 0; background: none; padding: 8px 12px; font: 600 13px 'Inter', sans-serif; color: var(--aj-soft); cursor: pointer; border-radius: 50px; }
+.aj-pass-toggle:hover { color: var(--aj-ink); background: #fff; }
+.aj-alert { padding: 14px 18px; border-radius: 16px; font-size: 14px; font-weight: 600; margin-bottom: 20px; line-height: 1.5; }
+.aj-alert.err { background: #fff0f0; color: #c62828; }
+.aj-alert.ok { background: #e8f5e9; color: var(--aj-ok); }
+.aj-alert.info { background: var(--aj-wash); color: var(--aj-ink); }
+
+.aj-auth { min-height: calc(100vh - 72px); display: flex; align-items: center; justify-content: center; padding: 40px var(--aj-gutter); }
+.aj-auth-card { width: 100%; max-width: 460px; background: var(--aj-wash); border-radius: var(--aj-r-lg); padding: clamp(28px, 5vw, 48px); }
+.aj-auth-card h1 { font-size: 2.2rem; font-weight: 900; letter-spacing: -.04em; margin-bottom: 8px; }
+.aj-auth-card > p { color: var(--aj-soft); font-size: 15px; line-height: 1.5; margin-bottom: 28px; }
+.aj-auth-card .aj-form input { background: #fff; }
+.aj-auth-card .aj-btn { margin-top: 8px; }
+.aj-auth-alt { margin-top: 22px; text-align: center; font-size: 14px; color: var(--aj-soft); }
+.aj-auth-alt a { color: var(--aj-ink); font-weight: 700; text-underline-offset: 3px; }
+
+.aj-account { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); padding-top: 8px; align-items: start; }
+.aj-side { position: sticky; top: 96px; display: flex; flex-direction: column; gap: 4px; }
+.aj-side a { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; border-radius: 50px; font-size: 14px; font-weight: 600; color: var(--aj-soft); text-decoration: none; transition: background .2s, color .2s; }
+.aj-side a:hover { background: var(--aj-wash); color: var(--aj-ink); }
+.aj-side a.active { background: var(--aj-ink); color: #fff; }
+.aj-side a.sair { color: var(--aj-danger); margin-top: 12px; }
+.aj-side a.sair:hover { background: #fff0f0; }
+.aj-panel { background: var(--aj-wash); border-radius: 32px; padding: clamp(24px, 3.5vw, 40px); margin-bottom: 20px; }
+.aj-panel h2 { font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 22px; }
+.aj-panel .aj-form input, .aj-panel .aj-form select { background: #fff; }
+.aj-panel .aj-btn { margin-top: 6px; }
+.aj-grid3 { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 0 16px; }
+@media (max-width: 860px) {
+    .aj-account { grid-template-columns: 1fr; }
+    .aj-side { position: static; flex-direction: row; flex-wrap: wrap; gap: 6px; }
+    .aj-side a.sair { margin-top: 0; }
+    .aj-grid2, .aj-grid3 { grid-template-columns: 1fr; }
+}
+.aj-toast-top { position: fixed; top: 84px; left: 50%; transform: translateX(-50%); z-index: 3000; background: var(--aj-ink); color: #fff; padding: 14px 28px; border-radius: 50px; font-size: 14px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,.25); transition: opacity .6s; }
+
+/* ── Pedidos ────────────────────────────────────────────── */
+.aj-status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
+.aj-status::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--aj-mute); }
+.aj-status.ok::before { background: #27ae60; }
+.aj-status.wait::before { background: #f59e0b; }
+.aj-status.bad::before { background: var(--aj-danger); }
+.aj-status.go::before { background: #3b82f6; }
+.aj-order { background: var(--aj-wash); border-radius: 28px; padding: 24px 28px; margin-bottom: 14px; }
+.aj-order-top { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: center; }
+.aj-order-top small { display: block; font-size: 12px; color: var(--aj-mute); font-weight: 500; margin-bottom: 4px; }
+.aj-order-top b { font-size: 15px; font-weight: 700; }
+.aj-order-top .tot { text-align: right; }
+.aj-order-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--aj-line); }
+.aj-order-actions .aj-btn { padding: 12px 24px; font-size: 13px; }
+@media (max-width: 700px) { .aj-order-top { grid-template-columns: 1fr 1fr; } .aj-order-top .tot { text-align: left; } }
+.aj-emptypage { text-align: center; padding: 64px 16px; background: var(--aj-wash); border-radius: 32px; }
+.aj-emptypage h2 { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+.aj-emptypage p { color: var(--aj-soft); margin-bottom: 22px; }
+
+/* ── Confirmação do pedido ──────────────────────────────── */
+.aj-conf .container { max-width: 640px; margin: 0 auto; padding: 56px var(--aj-gutter) 0; text-align: center; }
+.aj-conf .status-icon { width: 64px; height: 64px; border-radius: 50%; background: var(--aj-ink); color: #fff; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 20px; }
+.aj-conf .status-icon svg { width: 28px; height: 28px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.aj-conf .badge-status { display: inline-block; padding: 7px 16px; border-radius: 50px; font-size: 13px; font-weight: 700; margin: 0 auto 20px; display: block; width: fit-content; }
+.aj-conf .badge-pago { background: #e8f5e9; color: var(--aj-ok); }
+.aj-conf .badge-pendente { background: #fff8e1; color: #b45309; }
+.aj-conf h1 { font-size: clamp(2.2rem, 5vw, 3.2rem); font-weight: 900; letter-spacing: -.04em; margin-bottom: 14px; }
+.aj-conf .subtitulo { color: var(--aj-soft); line-height: 1.65; max-width: 480px; margin: 0 auto 36px; font-size: 16px; }
+.aj-conf .pix-box, .aj-conf .boleto-box, .aj-conf .pedido-info { background: var(--aj-wash); border-radius: 32px; padding: 32px; margin-bottom: 20px; }
+.aj-conf .pedido-info { text-align: left; }
+.aj-conf .pix-box h3, .aj-conf .boleto-box h3, .aj-conf .pedido-info h3 { font-size: 18px; font-weight: 800; margin-bottom: 18px; }
+.aj-conf #qrCodeImg { width: 208px; height: 208px; border-radius: 20px; background: #fff; padding: 8px; display: block; margin: 0 auto 20px; }
+.aj-conf .copia-cola, .aj-conf .barcode-txt { background: #fff; border-radius: 16px; padding: 14px 16px; font: 12px/1.5 ui-monospace, Menlo, monospace; word-break: break-all; text-align: left; margin-bottom: 14px; color: #333; max-height: 84px; overflow: auto; }
+.aj-conf .btn-copiar, .aj-conf .btn-boleto, .aj-conf .btn-black { display: inline-block; background: var(--aj-ink); color: #fff; border: 0; padding: 15px 32px; border-radius: 50px; font: 700 14px 'Inter', sans-serif; text-decoration: none; cursor: pointer; transition: background .25s; }
+.aj-conf .btn-copiar:hover, .aj-conf .btn-boleto:hover, .aj-conf .btn-black:hover { background: #333; }
+.aj-conf .btn-copiar.copiado { background: var(--aj-ok); }
+.aj-conf .btn-outline { display: inline-block; background: transparent; color: var(--aj-ink); border: 1px solid var(--aj-ink); padding: 15px 32px; border-radius: 50px; font: 700 14px 'Inter', sans-serif; text-decoration: none; transition: background .25s, color .25s; }
+.aj-conf .btn-outline:hover { background: var(--aj-ink); color: #fff; }
+.aj-conf .expiracao { font-size: 13px; color: #b45309; font-weight: 600; margin-top: 14px; }
+.aj-conf .info-linha { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--aj-line); font-size: 15px; }
+.aj-conf .info-linha:last-child { border-bottom: 0; }
+.aj-conf .info-linha span:first-child { color: var(--aj-soft); }
+.aj-conf .info-linha span:last-child { font-weight: 700; }
+.aj-conf .polling-bar { display: none; margin-top: 20px; }
+.aj-conf .polling-txt { font-size: 13px; color: var(--aj-soft); margin-bottom: 8px; }
+.aj-conf .progress-wrap { height: 4px; background: #e5e5e5; border-radius: 4px; overflow: hidden; }
+.aj-conf .progress-anim { height: 100%; width: 30%; background: var(--aj-ink); border-radius: 4px; animation: ajprog 2s linear infinite; }
+@keyframes ajprog { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }
+.aj-conf .acoes { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 24px; }
+
+/* ── Detalhe do pedido ──────────────────────────────────── */
+.aj-det .det-card { background: var(--aj-wash); border-radius: 32px; padding: clamp(22px, 3.5vw, 36px); margin-bottom: 16px; }
+.aj-det .det-card h3 { font-size: 18px; font-weight: 800; letter-spacing: -.01em; margin-bottom: 18px; }
+.aj-det .det-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 18px; }
+.aj-det .det-grid span { display: block; font-size: 12px; color: var(--aj-mute); font-weight: 500; }
+.aj-det .det-grid p { margin-top: 4px; font-weight: 700; font-size: 15px; }
+.aj-det .det-item { display: flex; gap: 16px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--aj-line); }
+.aj-det .det-item:last-of-type { border-bottom: 0; }
+.aj-det .det-item img { width: 64px; height: 80px; object-fit: cover; border-radius: 14px; background: #ececec; }
+.aj-det .det-item .info { flex: 1; }
+.aj-det .det-item .info h4 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.aj-det .det-item .info small { color: var(--aj-soft); font-size: 13px; }
+.aj-det .det-totais .linha { display: flex; justify-content: space-between; padding: 6px 0; color: var(--aj-soft); font-size: 15px; }
+.aj-det .det-totais .final { border-top: 1.5px solid var(--aj-ink); margin-top: 10px; padding-top: 14px; font-weight: 800; font-size: 20px; color: var(--aj-ink); }
+.aj-det .det-acoes { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+
+/* ── Ajuda e devolução ──────────────────────────────────── */
+.aj-help { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 8px; }
+.aj-help article { background: var(--aj-wash); border-radius: 28px; padding: 28px; }
+.aj-help h3 { font-size: 18px; font-weight: 800; margin-bottom: 10px; letter-spacing: -.01em; }
+.aj-help p { font-size: 14px; line-height: 1.65; color: var(--aj-soft); }
+@media (max-width: 800px) { .aj-help { grid-template-columns: 1fr; } }
+.aj-faq { max-width: 760px; border-top: 1px solid var(--aj-line); }
+.aj-faq details { border-bottom: 1px solid var(--aj-line); }
+.aj-faq summary { list-style: none; cursor: pointer; padding: 20px 0; font-size: 16px; font-weight: 700; display: flex; justify-content: space-between; gap: 16px; }
+.aj-faq summary::-webkit-details-marker { display: none; }
+.aj-faq summary::after { content: '+'; font-size: 22px; font-weight: 500; color: var(--aj-soft); }
+.aj-faq details[open] summary::after { content: '\2212'; }
+.aj-faq details p { padding: 0 0 22px; font-size: 15px; line-height: 1.7; color: var(--aj-soft); max-width: 64ch; }
+.aj-contact { margin-top: 40px; padding: clamp(28px, 5vw, 48px); border-radius: var(--aj-r-lg); background: var(--aj-ink); color: #fff; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; }
+.aj-contact h2 { font-size: 1.6rem; font-weight: 800; letter-spacing: -.03em; }
+.aj-contact p { color: #a8a8a8; margin-top: 6px; }
+.aj-contact .aj-btn { background: #fff; color: #000; border-color: #fff; }
+.aj-contact .aj-btn:hover { background: #e5e5e5; border-color: #e5e5e5; }
+.aj-form input[type=file] { padding: 12px 14px; background: #fff; }
+.aj-form textarea { resize: vertical; }

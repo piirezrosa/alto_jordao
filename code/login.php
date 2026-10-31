@@ -13,6 +13,7 @@ if (isset($_SESSION['usuario_id'])) {
 }
 
 $erro = "";
+$voltar = ((($_GET['msg'] ?? '') === 'faca_login_para_finalizar') || (($_POST['voltar'] ?? '') === 'checkout.php')) ? 'checkout.php' : '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = $_POST['email'];
@@ -23,9 +24,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([$email]);
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    // VERIFICAÇÃO COM SENHA SIMPLES (TEXTO PLANO)
-    if ($usuario && $senha === $usuario['senha']) {
-        
+    // Senhas novas são bcrypt (cadastro.php). Contas antigas em texto puro ainda entram
+    // e são convertidas para hash no primeiro login.
+    $ok = false;
+    if ($usuario) {
+        $guardada = (string)$usuario['senha'];
+        if (password_verify($senha, $guardada)) {
+            $ok = true;
+            if (password_needs_rehash($guardada, PASSWORD_DEFAULT)) {
+                try { $pdo->prepare("UPDATE usuarios SET senha = ? WHERE id = ?")->execute([password_hash($senha, PASSWORD_DEFAULT), $usuario['id']]); } catch (Throwable $e) { error_log('[LOGIN] não foi possível atualizar o hash: ' . $e->getMessage()); }
+            }
+        } elseif (strpos($guardada, '$2') !== 0 && hash_equals($guardada, $senha)) {
+            $ok = true;
+            try { $pdo->prepare("UPDATE usuarios SET senha = ? WHERE id = ?")->execute([password_hash($senha, PASSWORD_DEFAULT), $usuario['id']]); } catch (Throwable $e) { error_log('[LOGIN] não foi possível atualizar o hash: ' . $e->getMessage()); }
+        }
+    }
+    if ($ok) {
+        session_regenerate_id(true);
+
         // SALVA OS DADOS NA SESSÃO
         $_SESSION['usuario_id'] = $usuario['id'];
         $_SESSION['usuario_nome'] = $usuario['nome'];
@@ -36,7 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($_SESSION['usuario_nivel'] === 'superadmin' || $_SESSION['usuario_nivel'] === 'admin') {
             header("Location: admin_dashboard.php");
         } else {
-            header("Location: index.php");
+            // Quem veio do checkout volta para ele (só destino permitido)
+            header("Location: " . (($_POST['voltar'] ?? '') === 'checkout.php' ? 'checkout.php' : 'index.php'));
         }
         exit();
     } else {
@@ -49,139 +66,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login | Alto Jordão</title>
+    <title>Entrar | Alto Jordão</title>
     <link rel="stylesheet" href="style.css?v=<?= time() ?>">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
-    <style>
-        body { background-color: #f4f4f4; font-family: 'Inter', sans-serif; }
-        
-        .login-wrapper {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .login-card { 
-            max-width: 400px; 
-            width: 100%;
-            background: #fff;
-            padding: 50px 40px; 
-            border-radius: 30px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.05);
-        }
-
-        .login-card h2 { 
-            text-align: center; 
-            font-weight: 900; 
-            text-transform: uppercase;
-            letter-spacing: -1px;
-            margin-bottom: 10px;
-        }
-
-        .login-card p {
-            text-align: center;
-            color: #888;
-            font-size: 14px;
-            margin-bottom: 30px;
-        }
-
-        .form-group { margin-bottom: 20px; }
-        .form-group label { 
-            display: block; 
-            margin-bottom: 8px; 
-            font-weight: 700; 
-            font-size: 12px;
-            color: #555;
-        }
-
-        .auth-input { 
-            width: 100%; 
-            padding: 15px; 
-            border: 1px solid #eee; 
-            border-radius: 12px; 
-            font-family: 'Inter', sans-serif;
-            transition: 0.3s;
-        }
-
-        .auth-input:focus {
-            border-color: #000;
-            outline: none;
-        }
-
-        .btn-black-capsule { 
-            width: 100%; 
-            padding: 18px; 
-            background: #000; 
-            color: #fff; 
-            border: none; 
-            border-radius: 50px; 
-            font-weight: 800; 
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            cursor: pointer; 
-            transition: 0.3s;
-        }
-
-        .btn-black-capsule:hover {
-            transform: scale(1.02);
-            background: #333;
-        }
-
-        .error-msg { 
-            background: #ffebeb;
-            color: #d93025; 
-            padding: 12px;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: 600;
-            text-align: center; 
-            margin-bottom: 20px; 
-        }
-
-        .footer-link {
-            text-align: center;
-            margin-top: 25px;
-            font-size: 14px;
-            color: #666;
-        }
-
-        .footer-link a {
-            color: #000;
-            font-weight: 700;
-            text-decoration: none;
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="aj-page">
 
-    <div class="login-wrapper">
-        <div class="login-card">
-            <h2>Alto Jordão</h2>
-            <p>Entre para acessar sua conta premium</p>
-            
-            <?php if ($erro): ?>
-                <div class="error-msg"><?php echo $erro; ?></div>
-            <?php endif; ?>
+<?php include 'header.php'; ?>
 
-            <form method="POST">
-                <div class="form-group">
-                    <label>E-MAIL</label>
-                    <input type="email" name="email" class="auth-input" placeholder="seu@email.com" required>
-                </div>
-                <div class="form-group">
-                    <label>SENHA</label>
-                    <input type="password" name="senha" class="auth-input" placeholder="••••••••" required>
-                </div>
-                <button type="submit" class="btn-black-capsule">ENTRAR</button>
-            </form>
-            
-            <div class="footer-link">
-                Novo por aqui? <a href="cadastro.php">Crie sua conta</a>
+<main class="aj-auth">
+    <div class="aj-auth-card">
+        <h1>Entrar</h1>
+        <p>Acesse sua conta para ver pedidos e finalizar compras.</p>
+
+        <?php if ($erro): ?><div class="aj-alert err" role="alert"><?= htmlspecialchars($erro) ?></div><?php endif; ?>
+        <?php if ($voltar === 'checkout.php' && !$erro): ?><div class="aj-alert info">Entre na sua conta para finalizar a compra. Sua sacola continua guardada.</div><?php endif; ?>
+
+        <form method="POST" class="aj-form">
+            <input type="hidden" name="voltar" value="<?= htmlspecialchars($voltar) ?>">
+            <div class="aj-field">
+                <label for="email">E-mail</label>
+                <input type="email" id="email" name="email" placeholder="seu@email.com" autocomplete="email" required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
             </div>
-        </div>
-    </div>
+            <div class="aj-field">
+                <label for="senha">Senha</label>
+                <input type="password" id="senha" name="senha" autocomplete="current-password" required>
+                <button type="button" class="aj-pass-toggle" onclick="ajSenha(this)">Mostrar</button>
+            </div>
+            <button type="submit" class="aj-btn aj-btn--block">Entrar</button>
+        </form>
 
+        <p class="aj-auth-alt">Primeira vez aqui? <a href="cadastro.php">Criar conta</a></p>
+    </div>
+</main>
+
+<script>
+function ajSenha(b) {
+    const i = document.getElementById('senha'), v = i.type === 'password';
+    i.type = v ? 'text' : 'password'; b.textContent = v ? 'Ocultar' : 'Mostrar';
+}
+</script>
+<script src="script.js?v=<?= time() ?>"></script>
 </body>
 </html>

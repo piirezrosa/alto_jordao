@@ -48,60 +48,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alto Jordão | Cadastro</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Criar conta | Alto Jordão</title>
+    <link rel="stylesheet" href="style.css?v=<?= time() ?>">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="aj-page">
 
-<main class="main-centralizada">
-    <div class="container-cadastro">
-        <header class="cadastro-header">
-            <h1>CRIE SUA CONTA</h1>
-            <p>Junte-se a nós para uma experiência personalizada.</p>
-        </header>
+<?php include 'header.php'; ?>
 
-        <?php if ($mensagem): ?>
-            <p style="color: #e74c3c; font-weight: bold; text-align: center; margin-bottom: 20px;">
-                <?= $mensagem ?>
-            </p>
-        <?php endif; ?>
+<main class="aj-auth">
+    <div class="aj-auth-card">
+        <h1>Criar conta</h1>
+        <p>Com a conta você acompanha pedidos, salva seu endereço e compra mais rápido.</p>
 
-        <form action="" method="POST" class="form-cadastro">
-            <div class="input-grupo">
-                <label for="nome">NOME COMPLETO</label>
-                <input type="text" id="nome" name="nome" placeholder="Como quer que te chamemos?" required>
+        <?php if ($mensagem): ?><div class="aj-alert err" role="alert"><?= htmlspecialchars($mensagem) ?></div><?php endif; ?>
+
+        <form action="" method="POST" class="aj-form">
+            <div class="aj-field">
+                <label for="nome">Nome completo</label>
+                <input type="text" id="nome" name="nome" autocomplete="name" required value="<?= htmlspecialchars($_POST['nome'] ?? '') ?>">
             </div>
-
-            <div class="input-grupo">
-                <label for="email">E-MAIL</label>
-                <input type="email" id="email" name="email" placeholder="seu@email.com" required>
+            <div class="aj-field">
+                <label for="email">E-mail</label>
+                <input type="email" id="email" name="email" placeholder="seu@email.com" autocomplete="email" required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
             </div>
-
-            <div class="input-grupo grupo-senha">
-                <label for="senha">SENHA</label>
-                <input type="password" id="senha" name="senha" placeholder="Mínimo 8 caracteres" required minlength="8">
-                <button type="button" class="btn-show-pass" onclick="toggleSenha()">👁️</button>
+            <div class="aj-field">
+                <label for="senha">Senha</label>
+                <input type="password" id="senha" name="senha" autocomplete="new-password" required minlength="8">
+                <button type="button" class="aj-pass-toggle" onclick="ajSenha(this)">Mostrar</button>
+                <p class="aj-hint">Use pelo menos 8 caracteres.</p>
             </div>
-
-            <button type="submit" class="btn-black-capsule">CRIAR CONTA</button>
+            <button type="submit" class="aj-btn aj-btn--block">Criar conta</button>
         </form>
 
-        <footer class="cadastro-footer">
-            <p>Já tem uma conta? <a href="login.php">Entrar</a></p>
-        </footer>
+        <p class="aj-auth-alt">Já tem conta? <a href="login.php">Entrar</a></p>
     </div>
 </main>
 
 <script>
-// Função simples caso não esteja no seu script.js
-function toggleSenha() {
-    var x = document.getElementById("senha");
-    if (x.type === "password") {
-        x.type = "text";
-    } else {
-        x.type = "password";
-    }
+function ajSenha(b) {
+    const i = document.getElementById('senha'), v = i.type === 'password';
+    i.type = v ? 'text' : 'password'; b.textContent = v ? 'Ocultar' : 'Mostrar';
 }
 </script>
+<script src="script.js?v=<?= time() ?>"></script>
 </body>
 </html>

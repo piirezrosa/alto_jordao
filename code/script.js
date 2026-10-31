@@ -331,29 +331,24 @@ function renderizarPaginaFavoritos() {
 
     if (favs.length === 0) return;
 
-    // Constrói os cards dos produtos favoritados
-    favs.forEach(produto => {
-        const imgSrc = typeof resolverCaminhoImagem === 'function' 
-            ? resolverCaminhoImagem(produto.img || produto.imagem) 
-            : `img/produtos/${produto.img || produto.imagem}`;
-
-        const cardHTML = `
-            <div class="product-card" id="fav-prod-${produto.id}" style="border: 1px solid #f2f2f2; padding: 15px; position: relative;">
-                <button class="remove-fav" onclick="removerDosFavoritos(${produto.id})" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 18px; cursor: pointer; z-index: 10;">❤️</button>
-                
-                <a href="produto.php?id=${produto.id}" style="text-decoration: none; color: #000;">
-                    <div style="width: 100%; height: 350px; overflow: hidden; background: #f9f9f9; display: flex; align-items: center; justify-content: center;">
-                        <img src="${imgSrc}" alt="${produto.nome}" style="width: 100%; height: 100%; object-fit: cover;">
-                    </div>
-                    <div style="padding-top: 15px;">
-                        <h3 style="font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">${produto.nome}</h3>
-                        <p style="font-size: 13px; font-weight: 800; margin: 0;">R$ ${parseFloat(produto.preco).toLocaleString('pt-br', {minimumFractionDigits: 2})}</p>
-                    </div>
+    // Constrói os cards dos produtos favoritados (mesmo visual da vitrine)
+    const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    grid.innerHTML = favs.map(produto => {
+        const imgSrc = resolverCaminhoImagem(produto.img || produto.imagem);
+        const preco = (parseFloat(produto.preco) || 0).toLocaleString('pt-br', {minimumFractionDigits: 2});
+        const id = parseInt(produto.id, 10) || 0;
+        return `
+            <article class="aj-card" id="fav-prod-${id}">
+                <a class="aj-card-pic" href="produto.php?id=${id}" aria-label="${esc(produto.nome)}">
+                    <img src="${esc(imgSrc)}" alt="${esc(produto.nome)}" loading="lazy" onerror="this.style.opacity='0'">
                 </a>
-            </div>
-        `;
-        grid.innerHTML += cardHTML;
-    });
+                <button class="btn-fav is-fav remove-fav" type="button" aria-label="Remover dos favoritos" onclick="removerDosFavoritos(${id})">${ICONE_CORACAO}</button>
+                <div class="aj-card-info">
+                    <a class="aj-card-name" href="produto.php?id=${id}">${esc(produto.nome)}</a>
+                    <p class="aj-card-price">R$ ${preco}</p>
+                </div>
+            </article>`;
+    }).join('');
 }
 
 // Remove o produto direto clicando no coração da lista de desejos

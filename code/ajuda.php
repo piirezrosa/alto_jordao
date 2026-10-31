@@ -9,198 +9,67 @@ if (session_status() === PHP_SESSION_NONE) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Central de Ajuda | Alto Jordão</title>
+    <title>Central de ajuda | Alto Jordão</title>
     <link rel="stylesheet" href="style.css?v=<?= time() ?>">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --accent: #000;
-            --glass: rgba(255, 255, 255, 0.8);
-            --border: #f0f0f0;
-        }
-
-        .help-hero {
-            background: #fff;
-            padding: 100px 20px;
-            text-align: center;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .help-hero h1 {
-            font-size: 3.5rem;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: -2px;
-            margin-bottom: 20px;
-        }
-
-        .help-container {
-            max-width: 1000px;
-            margin: -60px auto 100px;
-            padding: 0 20px;
-        }
-
-        .help-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 30px;
-        }
-
-        .help-card {
-            background: #fff;
-            padding: 40px;
-            border-radius: 30px;
-            border: 1px solid var(--border);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.02);
-            transition: 0.3s;
-        }
-
-        .help-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 30px 60px rgba(0,0,0,0.05);
-        }
-
-        .help-card h3 {
-            font-size: 1.2rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .help-card p {
-            color: #666;
-            line-height: 1.6;
-            font-size: 0.95rem;
-        }
-
-        .faq-section {
-            margin-top: 80px;
-        }
-
-        .faq-item {
-            border-bottom: 1px solid var(--border);
-            padding: 25px 0;
-            cursor: pointer;
-        }
-
-        .faq-question {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-weight: 700;
-            font-size: 1.1rem;
-        }
-
-        .faq-answer {
-            max-height: 0;
-            overflow: hidden;
-            transition: 0.3s ease-out;
-            color: #777;
-            margin-top: 0;
-        }
-
-        .faq-item.active .faq-answer {
-            max-height: 200px;
-            margin-top: 15px;
-        }
-
-        .contact-footer {
-            background: #f9f9f9;
-            padding: 80px 20px;
-            text-align: center;
-            border-radius: 50px;
-            margin: 0 20px 60px;
-        }
-
-        .btn-contact {
-            display: inline-block;
-            background: #000;
-            color: #fff;
-            padding: 20px 40px;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-top: 30px;
-            transition: 0.3s;
-        }
-
-        .btn-contact:hover {
-            transform: scale(1.05);
-            background: #333;
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="aj-page">
 
 <?php include 'header.php'; ?>
 
-<section class="help-hero">
-    <span class="brand-tag" style="letter-spacing: 5px; color: #bbb;">Suporte ao Cliente</span>
-    <h1>Como podemos ajudar?</h1>
-</section>
+<main class="aj-wrap">
+    <section class="aj-pagehead">
+        <h1>Central de ajuda</h1>
+        <p>Respostas sobre entrega, pagamento, trocas e devoluções.</p>
+    </section>
 
-<div class="help-container">
-    <div class="help-grid">
-        <div class="help-card">
-            <h3><span>📦</span> Envios & Prazos</h3>
-            <p>Nossos produtos "Originals" possuem entrega premium. O prazo médio de entrega para capitais é de 3 a 5 dias úteis após a confirmação.</p>
-        </div>
+    <section class="aj-help aj-section" style="padding-top:32px">
+        <article>
+            <h3>Entrega e prazos</h3>
+            <p>No checkout você informa o CEP e vê as opções de frete com preço e prazo de cada uma, antes de pagar. A entrega começa depois da confirmação do pagamento.</p>
+        </article>
+        <article>
+            <h3>Trocas e devoluções</h3>
+            <p>Você tem até 7 dias após o recebimento para pedir troca ou devolução. O pedido é feito em Minha conta, na página Meus pedidos, com foto do produto.</p>
+        </article>
+        <article>
+            <h3>Pagamento</h3>
+            <p>Aceitamos PIX (com 5% de desconto), cartão de crédito e boleto. Os dados do cartão são enviados direto ao gateway de pagamento e não ficam guardados na loja.</p>
+        </article>
+    </section>
 
-        <div class="help-card">
-            <h3><span>🔄</span> Trocas e Devoluções</h3>
-            <p>Não serviu? Você tem até 7 dias após o recebimento para solicitar a troca gratuita. O produto deve estar com a tag original.</p>
-        </div>
-
-        <div class="help-card">
-            <h3><span>🛡️</span> Pagamento Seguro</h3>
-            <p>Aceitamos todos os cartões, PIX e boleto. Nossa plataforma utiliza criptografia de ponta para proteger seus dados financeiros.</p>
-        </div>
-    </div>
-
-    <section class="faq-section">
-        <h2 style="font-weight: 900; text-transform: uppercase; margin-bottom: 40px;">Dúvidas Frequentes</h2>
-        
-        <div class="faq-item" onclick="toggleFaq(this)">
-            <div class="faq-question">Como rastrear meu pedido? <span>+</span></div>
-            <div class="faq-answer">
-                Após o despacho, você receberá um e-mail com o código de rastreio. Você também pode consultar em "Meus Pedidos" no seu perfil.
-            </div>
-        </div>
-
-        <div class="faq-item" onclick="toggleFaq(this)">
-            <div class="faq-question">Os produtos são originais? <span>+</span></div>
-            <div class="faq-answer">
-                Sim. Todos os itens da Alto Jordão são produzidos com materiais de alta qualidade e possuem certificado de autenticidade da marca.
-            </div>
-        </div>
-
-        <div class="faq-item" onclick="toggleFaq(this)">
-            <div class="faq-question">Como escolher o tamanho correto? <span>+</span></div>
-            <div class="faq-answer">
-                Na página de cada produto, disponibilizamos uma tabela de medidas. Recomendamos medir uma peça que você já possui para comparar.
-            </div>
+    <section class="aj-section">
+        <div class="aj-section-head"><h2>Dúvidas frequentes</h2></div>
+        <div class="aj-faq">
+            <details>
+                <summary>Como acompanho meu pedido?</summary>
+                <p>Entre na sua conta e abra Meus pedidos. Lá você vê o status de cada compra: aguardando pagamento, pago, em separação, enviado ou entregue.</p>
+            </details>
+            <details>
+                <summary>Quando meu pedido é confirmado?</summary>
+                <p>No PIX e no cartão, a confirmação costuma ser em até 1 minuto. No boleto, depois da compensação, que leva de 1 a 3 dias úteis.</p>
+            </details>
+            <details>
+                <summary>Posso cancelar um pedido?</summary>
+                <p>Pedidos ainda não enviados podem ser cancelados. Fale com a gente pelo e-mail abaixo informando o número do pedido.</p>
+            </details>
+            <details>
+                <summary>Como uso um cupom?</summary>
+                <p>No checkout, digite o código no campo Cupom de desconto, no resumo do pedido, e toque em Aplicar. O desconto aparece no total na hora.</p>
+            </details>
         </div>
     </section>
-</div>
 
-<section class="contact-footer">
-    <h2 style="font-weight: 900; text-transform: uppercase;">Ainda com dúvidas?</h2>
-    <p style="color: #666;">Nossa equipe de especialistas está pronta para te atender.</p>
-    <a href="mailto:suporte@altojordao.com.br" class="btn-contact">Fale Conosco via E-mail</a>
-</section>
+    <section class="aj-contact">
+        <div>
+            <h2>Ainda com dúvidas?</h2>
+            <p>Escreva para a nossa equipe.</p>
+        </div>
+        <a class="aj-btn" href="mailto:suporte@altojordao.com.br">Enviar e-mail</a>
+    </section>
+</main>
 
-<script>
-    function toggleFaq(element) {
-        element.classList.toggle('active');
-        const span = element.querySelector('span');
-        span.innerText = element.classList.contains('active') ? '-' : '+';
-    }
-</script>
-
+<?php include 'footer.php'; ?>
+<script src="script.js?v=<?= time() ?>"></script>
 </body>
 </html>

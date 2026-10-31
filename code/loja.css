@@ -49,7 +49,7 @@ body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: anti
     max-width: var(--aj-page); margin: 0 auto; padding: 0 var(--aj-gutter);
     height: 72px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px;
 }
-.aj-logo { font-weight: 900; font-size: 20px; letter-spacing: -.5px; color: var(--aj-ink); text-decoration: none; justify-self: start; text-transform: uppercase; }
+.aj-logo { white-space: nowrap; font-weight: 900; font-size: 20px; letter-spacing: -.5px; color: var(--aj-ink); text-decoration: none; justify-self: start; text-transform: uppercase; }
 .aj-nav { display: flex; gap: 4px; }
 .aj-nav a {
     padding: 10px 18px; border-radius: 50px; font-size: 14px; font-weight: 600;
@@ -77,7 +77,9 @@ body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: anti
 @media (max-width: 900px) {
     .aj-header-in { grid-template-columns: auto 1fr auto; height: 64px; gap: 8px; }
     .aj-burger { display: inline-flex; }
-    .aj-logo { justify-self: center; }
+    .aj-logo { justify-self: center; font-size: 17px; }
+    .aj-ico { width: 40px; height: 40px; }
+    .aj-actions { gap: 0; }
     .aj-hello { display: none; }
     .aj-nav {
         position: absolute; left: 0; right: 0; top: 100%; background: #fff; flex-direction: column;
@@ -375,7 +377,8 @@ body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: anti
 .aj-checkout .desconto-pix { display: none; background: #e8f5e9; color: var(--aj-ok); padding: 10px 14px; border-radius: 14px; font-size: 13px; font-weight: 600; margin-top: 6px; }
 .aj-checkout .resumo-erro { display: none; background: #fff0f0; color: #c62828; border-radius: 14px; padding: 12px 14px; font-size: 13px; font-weight: 600; margin-top: 14px; }
 @media (max-width: 960px) {
-    .aj-checkout .checkout-container { grid-template-columns: 1fr; }
+    .aj-checkout .checkout-container { grid-template-columns: minmax(0, 1fr); }
+    .aj-checkout .checkout-form, .aj-checkout .resumo-pedido { min-width: 0; }
     .aj-checkout .resumo-pedido { position: static; }
     .aj-checkout .metodos-pagamento { grid-template-columns: 1fr; }
     .aj-checkout .metodo-card { flex-direction: row; align-items: center; gap: 14px; }

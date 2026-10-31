@@ -303,3 +303,81 @@ body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: anti
 .aj-review-top small { color: var(--aj-mute); font-size: 12px; margin-left: 8px; }
 .aj-review p { font-size: 14px; line-height: 1.65; color: var(--aj-soft); }
 .aj-noreview { color: var(--aj-soft); font-size: 15px; }
+
+/* ── Checkout ───────────────────────────────────────────── */
+.aj-checkout .checkout-container { max-width: var(--aj-page); margin: 0 auto; padding: 24px var(--aj-gutter) 0; display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: clamp(32px, 5vw, 80px); align-items: start; }
+.aj-checkout .checkout-form h1 { font-size: clamp(2rem, 4.5vw, 3.2rem); font-weight: 900; letter-spacing: -.04em; margin: 16px 0 8px; }
+.aj-steptitle { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 800; letter-spacing: -.02em; margin: 44px 0 20px; }
+.aj-steptitle i { width: 30px; height: 30px; border-radius: 50%; background: var(--aj-ink); color: #fff; font: 800 14px 'Inter', sans-serif; display: inline-flex; align-items: center; justify-content: center; }
+.aj-checkout .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.aj-checkout .form-group { margin-bottom: 16px; }
+.aj-checkout .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--aj-ink); }
+.aj-checkout .form-group input, .aj-checkout .form-group select {
+    width: 100%; padding: 15px 18px; border: 1px solid var(--aj-line); border-radius: 16px; background: var(--aj-wash);
+    font: 500 15px 'Inter', sans-serif; color: var(--aj-ink); transition: border-color .2s, background .2s; box-sizing: border-box;
+}
+.aj-checkout .form-group input:focus, .aj-checkout .form-group select:focus { border-color: var(--aj-ink); background: #fff; outline: none; }
+.aj-checkout .form-group input[readonly] { color: var(--aj-soft); cursor: not-allowed; }
+
+.aj-checkout .metodos-pagamento { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.aj-checkout .metodo-card { border: 1.5px solid var(--aj-line); border-radius: 20px; padding: 18px 14px; cursor: pointer; background: #fff; user-select: none; transition: border-color .2s, background .2s, color .2s; display: flex; flex-direction: column; gap: 10px; }
+.aj-checkout .metodo-card:hover { border-color: var(--aj-ink); }
+.aj-checkout .metodo-card.ativo { background: var(--aj-ink); border-color: var(--aj-ink); color: #fff; }
+.aj-checkout .metodo-card svg { width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.aj-checkout .metodo-card .label { font-size: 15px; font-weight: 700; }
+.aj-checkout .metodo-card .sub { font-size: 12px; opacity: .65; margin-top: -6px; }
+.aj-checkout #painel-pix, .aj-checkout #painel-boleto, .aj-checkout #painel-cartao { display: none; margin-top: 16px; }
+.aj-checkout .pix-info, .aj-checkout .boleto-info { background: var(--aj-wash); border-radius: 20px; padding: 20px 22px; font-size: 14px; line-height: 1.65; color: var(--aj-soft); }
+.aj-checkout .pix-info strong, .aj-checkout .boleto-info strong { color: var(--aj-ink); }
+.aj-checkout .input-wrapper { position: relative; }
+.aj-checkout .card-flag { width: 40px; height: 26px; object-fit: contain; position: absolute; right: 14px; top: 42px; }
+.aj-checkout .gateway-badge { display: inline-flex; margin-top: 14px; padding: 7px 14px; border-radius: 50px; background: var(--aj-wash); font-size: 12px; font-weight: 600; color: var(--aj-soft); }
+.aj-checkout .aviso-gateway { background: #fff8e1; border-radius: 20px; padding: 16px 20px; font-size: 14px; color: #b45309; line-height: 1.6; margin: 16px 0; }
+.aj-checkout .aviso-gateway strong { display: block; margin-bottom: 4px; }
+.aj-checkout .msg-erro { display: none; background: #fff0f0; color: #c62828; padding: 14px 18px; border-radius: 16px; font-size: 14px; font-weight: 600; margin-top: 16px; }
+.aj-checkout .btn-finalizar { width: 100%; margin-top: 24px; padding: 20px; background: var(--aj-ink); color: #fff; border: 0; border-radius: 50px; font: 700 15px 'Inter', sans-serif; cursor: pointer; transition: background .25s, transform .25s var(--aj-ease); }
+.aj-checkout .btn-finalizar:hover { background: #333; }
+.aj-checkout .btn-finalizar:active { transform: scale(.99); }
+.aj-checkout .btn-finalizar:disabled { opacity: .5; cursor: not-allowed; }
+
+.aj-checkout .resumo-pedido { background: var(--aj-wash); border-radius: var(--aj-r-lg); padding: 32px; position: sticky; top: 96px; }
+.aj-checkout .resumo-pedido h3 { font-size: 20px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 20px; }
+.aj-checkout .item-checkout { display: grid; grid-template-columns: 64px 1fr; gap: 14px; align-items: center; margin-bottom: 14px; }
+.aj-checkout .item-checkout img { width: 64px; height: 80px; object-fit: cover; border-radius: 14px; background: #ececec; }
+.aj-checkout .item-info h4 { font-size: 14px; font-weight: 700; line-height: 1.3; margin: 0; }
+.aj-checkout .item-info p { font-size: 12px; color: var(--aj-mute); margin: 3px 0; }
+.aj-checkout .item-info span { font-size: 13px; font-weight: 700; }
+.aj-checkout .cupom-box { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--aj-line); }
+.aj-checkout .cupom-box label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.aj-checkout .cupom-row { display: flex; gap: 8px; }
+.aj-checkout .cupom-row input { flex: 1; min-width: 0; padding: 13px 18px; border: 1px solid var(--aj-line); border-radius: 50px; background: #fff; font: 700 14px 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 1px; outline: none; }
+.aj-checkout .cupom-row input:focus { border-color: var(--aj-ink); }
+.aj-checkout .btn-cupom { padding: 0 22px; border: 0; border-radius: 50px; background: var(--aj-ink); color: #fff; font: 700 13px 'Inter', sans-serif; cursor: pointer; }
+.aj-checkout .btn-cupom:disabled { opacity: .5; cursor: wait; }
+.aj-checkout .cupom-msg { display: none; font-size: 13px; font-weight: 600; margin-top: 8px; }
+.aj-checkout .cupom-msg.erro { display: block; color: #c62828; }
+.aj-checkout .cupom-aplicado { display: none; align-items: center; justify-content: space-between; gap: 10px; background: #e8f5e9; color: var(--aj-ok); border-radius: 50px; padding: 11px 18px; font-size: 13px; font-weight: 700; }
+.aj-checkout .cupom-aplicado button { background: none; border: 0; color: var(--aj-ok); font: 700 13px 'Inter', sans-serif; text-decoration: underline; cursor: pointer; }
+.aj-checkout .summary-totals { margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--aj-line); }
+.aj-checkout .total-line { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; font-size: 15px; }
+.aj-checkout .total-line.final { margin-top: 16px; padding-top: 16px; border-top: 1.5px solid var(--aj-ink); font-size: 24px; font-weight: 800; letter-spacing: -.02em; }
+.aj-checkout .linha-desconto { color: var(--aj-ok); font-weight: 600; }
+.aj-checkout .opcoes-frete { margin: 6px 0 12px; display: flex; flex-direction: column; gap: 8px; }
+.aj-checkout .opcao-frete { display: flex; align-items: center; gap: 10px; background: #fff; border: 1.5px solid transparent; border-radius: 16px; padding: 12px 14px; cursor: pointer; font-size: 13px; transition: border-color .2s; }
+.aj-checkout .opcao-frete:hover { border-color: var(--aj-line); }
+.aj-checkout .opcao-frete.sel { border-color: var(--aj-ink); }
+.aj-checkout .opcao-frete input { accent-color: #000; }
+.aj-checkout .opcao-frete .of-nome { flex: 1; font-weight: 700; }
+.aj-checkout .opcao-frete .of-prazo { color: var(--aj-soft); font-size: 12px; }
+.aj-checkout .opcao-frete .of-preco { font-weight: 700; }
+.aj-checkout .opcao-frete .of-preco.gratis { color: var(--aj-ok); }
+.aj-checkout .dica-frete { display: none; background: #fff8e1; color: #b45309; padding: 10px 14px; border-radius: 14px; font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.aj-checkout .desconto-pix { display: none; background: #e8f5e9; color: var(--aj-ok); padding: 10px 14px; border-radius: 14px; font-size: 13px; font-weight: 600; margin-top: 6px; }
+.aj-checkout .resumo-erro { display: none; background: #fff0f0; color: #c62828; border-radius: 14px; padding: 12px 14px; font-size: 13px; font-weight: 600; margin-top: 14px; }
+@media (max-width: 960px) {
+    .aj-checkout .checkout-container { grid-template-columns: 1fr; }
+    .aj-checkout .resumo-pedido { position: static; }
+    .aj-checkout .metodos-pagamento { grid-template-columns: 1fr; }
+    .aj-checkout .metodo-card { flex-direction: row; align-items: center; gap: 14px; }
+    .aj-checkout .metodo-card .sub { margin: 0 0 0 auto; }
+}

@@ -48,164 +48,28 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
     <script src="https://assets.pagseguro.com.br/checkout-sdk-js/rc/dist/browser/pagseguro.min.js"></script>
     <?php endif; ?>
 
-    <style>
-        body { background:#fff; color:#000; font-family:'Inter',sans-serif; }
-
-        .checkout-container {
-            max-width:1100px; margin:40px auto 100px;
-            padding:0 20px; display:grid;
-            grid-template-columns:1fr 380px; gap:80px;
-        }
-
-        .checkout-form h2 {
-            font-size:2.5rem; font-weight:900;
-            text-transform:uppercase; margin-bottom:50px; letter-spacing:-2px;
-        }
-
-        .section-title {
-            font-size:10px; font-weight:900; text-transform:uppercase;
-            letter-spacing:3px; color:#bbb; margin:40px 0 20px;
-            display:flex; align-items:center; gap:15px;
-        }
-        .section-title::after { content:''; flex:1; height:1px; background:#efefef; }
-
-        .form-row { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
-        .form-group { margin-bottom:20px; }
-        .form-group label { display:block; font-weight:800; font-size:11px; margin-bottom:8px; text-transform:uppercase; }
-        .form-group input,
-        .form-group select {
-            width:100%; padding:16px; border:1.5px solid #efefef;
-            border-radius:12px; font-size:14px; font-family:inherit;
-            background:#fbfbfb; transition:.3s; box-sizing:border-box;
-        }
-        .form-group input:focus,
-        .form-group select:focus { border-color:#000; background:#fff; outline:none; }
-        .form-group input[readonly] { opacity:.6; cursor:not-allowed; }
-
-        /* ── MÉTODOS DE PAGAMENTO ── */
-        .metodos-pagamento { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:10px; }
-        .metodo-card {
-            border:2px solid #eee; border-radius:16px; padding:18px 10px;
-            text-align:center; cursor:pointer; transition:.3s; background:#fff;
-            user-select:none;
-        }
-        .metodo-card:hover { border-color:#aaa; }
-        .metodo-card.ativo { border-color:#000; background:#000; color:#fff; }
-        .metodo-card .icon  { font-size:26px; display:block; margin-bottom:8px; }
-        .metodo-card .label { font-size:12px; font-weight:800; text-transform:uppercase; }
-        .metodo-card .sub   { font-size:10px; opacity:.6; margin-top:3px; }
-
-        /* ── PAINEL PIX ── */
-        #painel-pix { display:none; margin-top:10px; }
-        .pix-info { background:#f9f9f9; border-radius:16px; padding:20px; border-left:4px solid #000; font-size:13px; line-height:1.7; }
-
-        /* ── PAINEL BOLETO ── */
-        #painel-boleto { display:none; margin-top:10px; }
-        .boleto-info { background:#f9f9f9; border-radius:16px; padding:20px; font-size:13px; line-height:1.7; }
-
-        /* ── PAINEL CARTÃO ── */
-        #painel-cartao { display:none; margin-top:10px; }
-        .input-wrapper { position:relative; }
-        .card-flag { width:40px; height:26px; object-fit:contain; position:absolute; right:14px; top:50%; transform:translateY(-50%); }
-
-        /* ── CUPOM ── */
-        .cupom-box { margin-top:22px; padding-top:20px; border-top:1px solid #eee; }
-        .cupom-box label { display:block; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#888; margin-bottom:8px; }
-        .cupom-row { display:flex; gap:8px; }
-        .cupom-row input { flex:1; min-width:0; padding:13px 14px; border:1px solid #ddd; border-radius:12px; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:1px; }
-        .cupom-row input:focus { outline:none; border-color:#000; }
-        .btn-cupom { padding:0 20px; border:none; border-radius:12px; background:#000; color:#fff; font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase; cursor:pointer; }
-        .btn-cupom:disabled { opacity:.5; cursor:wait; }
-        .cupom-msg { font-size:12px; font-weight:700; margin-top:8px; display:none; }
-        .cupom-msg.erro { color:#c62828; display:block; }
-        .cupom-aplicado { display:none; align-items:center; justify-content:space-between; gap:10px; background:#e8f5e9; color:#2e7d32; border-radius:12px; padding:11px 14px; font-size:12px; font-weight:800; }
-        .cupom-aplicado button { background:none; border:none; color:#2e7d32; font-size:11px; font-weight:800; text-decoration:underline; cursor:pointer; }
-        .linha-desconto { color:#2e7d32; font-weight:700; }
-        .opcoes-frete { margin:4px 0 12px; display:flex; flex-direction:column; gap:6px; }
-        .opcao-frete { display:flex; align-items:center; gap:10px; border:1px solid #e5e5e5; border-radius:10px; padding:9px 12px; cursor:pointer; font-size:12px; }
-        .opcao-frete.sel { border-color:#000; background:#fafafa; }
-        .opcao-frete .of-nome { flex:1; font-weight:700; }
-        .opcao-frete .of-prazo { color:#888; font-size:11px; }
-        .opcao-frete .of-preco { font-weight:800; }
-        .opcao-frete .of-preco.gratis { color:#27ae60; }
-        .dica-frete { background:#fff8e1; color:#b45309; padding:8px 12px; border-radius:8px; font-size:12px; font-weight:700; margin-bottom:10px; display:none; }
-        .resumo-erro { background:#fff0f0; color:#c62828; border-radius:10px; padding:10px 12px; font-size:12px; font-weight:700; margin-top:14px; display:none; }
-
-        /* ── BADGE GATEWAY ── */
-        .gateway-badge {
-            display:inline-flex; align-items:center; gap:6px;
-            background:#f0f7ff; border:1px solid #c8dff7; border-radius:50px;
-            padding:5px 12px; font-size:11px; font-weight:700; color:#1565c0;
-            margin-top:10px;
-        }
-
-        /* ── AVISO SEM GATEWAY ── */
-        .aviso-gateway {
-            background:#fff8e1; border:1px solid #ffe082; border-radius:14px;
-            padding:16px 18px; font-size:13px; color:#b45309; line-height:1.6;
-            margin-bottom:20px;
-        }
-        .aviso-gateway strong { display:block; margin-bottom:4px; }
-
-        /* ── BOTÃO ── */
-        .btn-finalizar {
-            width:100%; padding:22px; background:#000; color:#fff; border:none;
-            border-radius:50px; font-weight:900; font-size:13px; letter-spacing:2px;
-            text-transform:uppercase; cursor:pointer; transition:.4s; margin-top:20px;
-        }
-        .btn-finalizar:hover { background:#333; transform:translateY(-3px); box-shadow:0 15px 30px rgba(0,0,0,.15); }
-        .btn-finalizar:disabled { opacity:.5; cursor:not-allowed; transform:none; box-shadow:none; }
-
-        /* ── ERRO ── */
-        .msg-erro {
-            background:#fff0f0; border:1px solid #ffc0c0; color:#c62828;
-            padding:14px 18px; border-radius:12px; font-size:13px;
-            font-weight:600; margin-top:16px; display:none;
-        }
-
-        /* ── RESUMO ── */
-        .resumo-pedido {
-            background:#fff; padding:35px; border-radius:30px;
-            border:1px solid #efefef; position:sticky; top:120px; height:fit-content;
-        }
-        .item-checkout { display:flex; gap:15px; margin-bottom:20px; align-items:center; }
-        .item-checkout img { width:60px; height:60px; object-fit:cover; background:#f5f5f5; border-radius:10px; }
-        .item-info h4 { font-size:12px; font-weight:800; text-transform:uppercase; margin:0; }
-        .item-info p  { font-size:10px; color:#888; margin:2px 0; }
-        .item-info span { font-size:12px; font-weight:700; }
-        .summary-totals { margin-top:25px; padding-top:25px; border-top:1px solid #eee; }
-        .total-line { display:flex; justify-content:space-between; margin-bottom:10px; font-size:14px; }
-        .total-line.final { font-size:24px; font-weight:900; margin-top:15px; border-top:2px solid #000; padding-top:15px; }
-        .desconto-pix { background:#e8f5e9; color:#2e7d32; padding:8px 12px; border-radius:8px; font-size:12px; font-weight:700; margin-top:6px; display:none; }
-
-        @media (max-width:900px) {
-            .checkout-container { grid-template-columns:1fr; }
-            .metodos-pagamento  { grid-template-columns:1fr; }
-            .resumo-pedido { position:static; margin-top:40px; }
-        }
-    </style>
 </head>
-<body>
+<body class="aj-page aj-checkout">
 
 <?php include 'header.php'; ?>
 
 <main class="checkout-container">
     <section class="checkout-form">
-        <h2>Finalizar Pedido</h2>
+        <h1>Finalizar pedido</h1>
 
         <?php if (!$mp_ok && !$ps_ok): ?>
         <div class="aviso-gateway">
-            <strong>⚠ Nenhum gateway configurado</strong>
+            <strong>Nenhum gateway de pagamento configurado</strong>
             O pedido será registrado, mas o pagamento real não será processado.
-            Configure as credenciais em <code>mercadopago.php</code> ou <code>pagseguro.php</code>.
+            Configure as credenciais no arquivo <code>.env</code>.
         </div>
         <?php endif; ?>
 
         <!-- DADOS DO COMPRADOR -->
-        <span class="section-title">Dados do Comprador</span>
+        <h2 class="aj-steptitle"><i>1</i>Seus dados</h2>
         <div class="form-row">
             <div class="form-group">
-                <label>Nome Completo</label>
+                <label>Nome completo</label>
                 <input type="text" id="campo-nome" required placeholder="Seu nome completo"
                        value="<?= htmlspecialchars($user['nome'] ?? '') ?>">
             </div>
@@ -217,7 +81,7 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label>CPF *</label>
+                <label>CPF</label>
                 <input type="text" id="campo-cpf" placeholder="000.000.000-00" maxlength="14"
                        value="<?= htmlspecialchars($user['cpf'] ?? '') ?>">
             </div>
@@ -229,7 +93,7 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
         </div>
 
         <!-- ENDEREÇO -->
-        <span class="section-title">Endereço de Entrega</span>
+        <h2 class="aj-steptitle"><i>2</i>Entrega</h2>
         <div class="form-row">
             <div class="form-group">
                 <label>CEP</label>
@@ -244,7 +108,7 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
         </div>
         <div style="display:grid; grid-template-columns:2.5fr 1fr; gap:20px;">
             <div class="form-group">
-                <label>Rua / Logradouro</label>
+                <label>Rua</label>
                 <input type="text" id="campo-rua" required placeholder="Ex: Av. Paulista"
                        value="<?= htmlspecialchars($user['rua'] ?? '') ?>">
             </div>
@@ -268,21 +132,21 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
         </div>
 
         <!-- MÉTODO DE PAGAMENTO -->
-        <span class="section-title">Forma de Pagamento</span>
+        <h2 class="aj-steptitle"><i>3</i>Pagamento</h2>
 
         <div class="metodos-pagamento">
             <div class="metodo-card ativo" onclick="selecionarMetodo('pix', this)">
-                <span class="icon">⚡</span>
+                <svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>
                 <div class="label">PIX</div>
                 <div class="sub">5% de desconto</div>
             </div>
             <div class="metodo-card" onclick="selecionarMetodo('cartao', this)">
-                <span class="icon">💳</span>
+                <svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 10h19M6.5 15h3"/></svg>
                 <div class="label">Cartão</div>
-                <div class="sub">Até 12x</div>
+                <div class="sub">Em até 12x</div>
             </div>
             <div class="metodo-card" onclick="selecionarMetodo('boleto', this)">
-                <span class="icon">🏦</span>
+                <svg viewBox="0 0 24 24"><path d="M4 6v12M8 6v12M12 6v12M15 6v12M19 6v12"/></svg>
                 <div class="label">Boleto</div>
                 <div class="sub">Vence em 3 dias</div>
             </div>
@@ -291,7 +155,7 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
         <!-- Badge mostrando quais gateways estão ativos -->
         <?php if ($mp_ok || $ps_ok): ?>
         <div class="gateway-badge">
-            🔒 Pagamento processado por:
+            Pagamento processado por:
             <?= $mp_ok ? ' Mercado Pago' : '' ?>
             <?= ($mp_ok && $ps_ok) ? ' +' : '' ?>
             <?= $ps_ok ? ' PagSeguro' : '' ?>
@@ -302,7 +166,7 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
         <!-- PAINEL PIX -->
         <div id="painel-pix">
             <div class="pix-info">
-                ⚡ <strong>Pagamento via PIX</strong> — aprovação em até 1 minuto.<br>
+                <strong>Pagamento via PIX.</strong> A aprovação leva até 1 minuto.<br>
                 Após confirmar, você receberá o QR Code e o código copia-e-cola.
                 O PIX expira em <strong>30 minutos</strong>.
             </div>
@@ -311,7 +175,7 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
         <!-- PAINEL BOLETO -->
         <div id="painel-boleto">
             <div class="boleto-info">
-                🏦 <strong>Boleto Bancário</strong><br>
+                <strong>Boleto bancário.</strong><br>
                 Vence em 3 dias úteis. O pedido só é confirmado após a compensação (1 a 3 dias úteis).
             </div>
         </div>
@@ -319,13 +183,13 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
         <!-- PAINEL CARTÃO -->
         <div id="painel-cartao">
             <div class="form-group input-wrapper">
-                <label>Número do Cartão</label>
+                <label>Número do cartão</label>
                 <input type="text" id="cardNumber" placeholder="0000 0000 0000 0000" maxlength="19"
                        autocomplete="cc-number">
                 <img id="cardFlag" class="card-flag" src="" alt="" style="display:none;">
             </div>
             <div class="form-group">
-                <label>Nome no Cartão</label>
+                <label>Nome no cartão</label>
                 <input type="text" id="cardholderName"
                        placeholder="Como está impresso no cartão"
                        style="text-transform:uppercase;" autocomplete="cc-name">
@@ -353,15 +217,13 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
         <div class="msg-erro" id="msgErro"></div>
 
         <button class="btn-finalizar" id="btnFinalizar" onclick="finalizarPedido()">
-            Confirmar e Pagar
+            Confirmar e pagar
         </button>
     </section>
 
     <!-- RESUMO -->
     <aside class="resumo-pedido">
-        <h3 style="font-weight:900; margin-bottom:30px; text-transform:uppercase; font-size:13px; letter-spacing:1px;">
-            Sua Sacola
-        </h3>
+        <h3>Seu pedido</h3>
         <div id="listaCheckout"></div>
         <div class="cupom-box">
             <label for="campoCupom">Cupom de desconto</label>
@@ -371,7 +233,7 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
                 <button type="button" class="btn-cupom" id="btnCupom" onclick="aplicarCupom()">Aplicar</button>
             </div>
             <div class="cupom-aplicado" id="cupomAplicadoBox">
-                <span>🏷️ <span id="cupomAplicadoCodigo"></span> aplicado</span>
+                <span><span id="cupomAplicadoCodigo"></span> aplicado</span>
                 <button type="button" onclick="removerCupom()">Remover</button>
             </div>
             <div class="cupom-msg" id="cupomMsg"></div>
@@ -379,7 +241,7 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
 
         <div class="summary-totals">
             <div class="total-line">
-                <span style="color:#888;">Subtotal</span>
+                <span style="color:var(--aj-soft);">Subtotal</span>
                 <span id="subtotalCheckout" style="font-weight:700;">R$ 0,00</span>
             </div>
             <div class="total-line linha-desconto" id="linhaCupom" style="display:none;">
@@ -387,7 +249,7 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
                 <span id="valorCupom"></span>
             </div>
             <div class="total-line">
-                <span style="color:#888;">Frete</span>
+                <span style="color:var(--aj-soft);">Frete</span>
                 <span id="valorFrete" style="font-weight:800;">—</span>
             </div>
             <div id="opcoesFrete" class="opcoes-frete"></div>
@@ -395,10 +257,10 @@ $ps_public_key = defined('PS_PUBLIC_KEY') ? PS_PUBLIC_KEY : '';
             <div id="fonteFrete" style="font-size:11px; margin:0 0 10px;"></div>
             <div class="dica-frete" id="dicaFrete"></div>
             <div class="desconto-pix" id="descontoPix">
-                🎉 Desconto PIX 5%: <span id="valorDesconto"></span>
+                Desconto PIX de 5%: <span id="valorDesconto"></span>
             </div>
             <div class="total-line final">
-                <span>TOTAL</span>
+                <span>Total</span>
                 <span id="totalCheckout">R$ 0,00</span>
             </div>
             <div class="resumo-erro" id="resumoErro"></div>
@@ -565,16 +427,16 @@ function renderizarTotais(r) {
 
     const fonte = $('fonteFrete');
     if (r.frete_definido && r.frete_fonte === 'melhorenvio') {
-        fonte.textContent = '✔ Frete calculado em tempo real (Melhor Envio)'; fonte.style.color = '#27ae60';
+        fonte.textContent = 'Frete calculado em tempo real (Melhor Envio)'; fonte.style.color = '#27ae60';
     } else if (r.frete_definido && r.frete_fonte === 'tabela_fallback') {
-        fonte.textContent = '⚠ Valor estimado: a cotação online está indisponível no momento'; fonte.style.color = '#b45309';
+        fonte.textContent = 'Valor estimado: a cotação online está indisponível no momento'; fonte.style.color = '#b45309';
     } else {
         fonte.textContent = '';
     }
 
     const dica = $('dicaFrete');
     if (r.frete_falta > 0) {
-        dica.textContent = '🚚 Faltam ' + fmtBRL(r.frete_falta) + ' para ganhar frete grátis';
+        dica.textContent = 'Faltam ' + fmtBRL(r.frete_falta) + ' para ganhar frete grátis';
         dica.style.display = 'block';
     } else {
         dica.style.display = 'none';
@@ -894,7 +756,7 @@ async function finalizarPedido() {
             msgBox.textContent   = '⚠ ' + e.message;
             msgBox.style.display = 'block';
             btn.disabled         = false;
-            btn.textContent      = 'Confirmar e Pagar';
+            btn.textContent      = 'Confirmar e pagar';
             return;
         }
     }
@@ -922,13 +784,13 @@ async function finalizarPedido() {
             msgBox.style.display = 'block';
             atualizarTotal();   // o frete/cupom pode ter mudado: mostra o resumo atual
             btn.disabled         = false;
-            btn.textContent      = 'Confirmar e Pagar';
+            btn.textContent      = 'Confirmar e pagar';
         }
     } catch(e) {
         msgBox.textContent   = '⚠ Erro de conexão. Tente novamente.';
         msgBox.style.display = 'block';
         btn.disabled         = false;
-        btn.textContent      = 'Confirmar e Pagar';
+        btn.textContent      = 'Confirmar e pagar';
     }
 }
 </script>

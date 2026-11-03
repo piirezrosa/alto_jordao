@@ -25,7 +25,13 @@ if (isset($pdo)) {
 $pag_ativa = $pagina_atual ?? '';
 ?>
 
-<aside class="admin-sidebar">
+<div class="adm-mobilebar">
+    <button type="button" aria-label="Abrir menu" onclick="admMenu(true)"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <b>Alto Jordão</b>
+</div>
+<div class="adm-backdrop" id="admBackdrop" onclick="admMenu(false)"></div>
+
+<aside class="admin-sidebar" id="admSidebar">
     <div class="sb-logo">ALTO JORDÃO</div>
 
     <div class="sb-section">
@@ -99,6 +105,23 @@ $pag_ativa = $pagina_atual ?? '';
         <a href="logout.php" class="sb-item" style="color: var(--danger, #ff4d4d);">🚪 Sair</a>
     </div>
 </aside>
+
+<script>
+// Menu lateral no celular + tabelas com rolagem horizontal própria
+function admMenu(abrir) {
+    document.getElementById('admSidebar').classList.toggle('open', abrir);
+    document.getElementById('admBackdrop').classList.toggle('show', abrir);
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') admMenu(false); });
+document.querySelectorAll('#admSidebar a').forEach(a => a.addEventListener('click', () => admMenu(false)));
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.admin-main table').forEach(t => {
+        if (t.parentElement.classList.contains('tbl-scroll')) return;
+        const w = document.createElement('div'); w.className = 'tbl-scroll';
+        t.parentNode.insertBefore(w, t); w.appendChild(t);
+    });
+});
+</script>
 
 <?php if (in_array($_SESSION['usuario_nivel'] ?? '', ['admin','superadmin'], true)): ?>
 <style>

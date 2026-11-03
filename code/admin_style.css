@@ -484,3 +484,58 @@ body.admin-page {
     .admin-main    { margin-left: 0; padding: 24px 20px; }
     .kpi-grid      { grid-template-columns: 1fr 1fr; }
 }
+/* ── MOBILE (painel admin) ───────────────────────────────
+   Barra superior com menu, sidebar que abre por cima, tabelas com
+   rolagem própria e grades de duas colunas que empilham.        */
+.adm-mobilebar, .adm-backdrop { display: none; }
+
+@media (max-width: 900px) {
+    body.admin-page { display: block; overflow-x: hidden; }
+    .admin-sidebar { width: min(300px, 86vw); z-index: 1200; box-shadow: none; transition: transform .3s; }
+    .admin-sidebar.open { box-shadow: 12px 0 40px rgba(0,0,0,.25); }
+
+    .adm-mobilebar {
+        display: flex; align-items: center; gap: 12px; position: fixed; top: 0; left: 0; right: 0; height: 60px; z-index: 1100;
+        padding: 0 14px; background: rgba(255,255,255,.95); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
+    }
+    .adm-mobilebar button {
+        width: 42px; height: 42px; border: 0; border-radius: 50%; background: var(--grey-bg); cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center; color: var(--black);
+    }
+    .adm-mobilebar svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; }
+    .adm-mobilebar b { font-size: 15px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
+    .adm-backdrop { position: fixed; inset: 0; z-index: 1150; background: rgba(0,0,0,.4); opacity: 0; pointer-events: none; transition: opacity .3s; }
+    .adm-backdrop.show { display: block; opacity: 1; pointer-events: auto; }
+
+    .admin-main { margin-left: 0; padding: 76px 16px 32px; width: 100%; min-width: 0; max-width: 100vw; }
+    .admin-main > *, .two-col > *, .admin-main [style*="grid-template-columns"] > * { min-width: 0; }
+
+    .admin-topbar { flex-wrap: wrap; gap: 14px; margin-bottom: 24px; }
+    .admin-topbar h1 { font-size: 24px; letter-spacing: -1px; }
+    .topbar-actions { flex-wrap: wrap; width: 100%; }
+    .topbar-actions > * { flex: 1 1 auto; text-align: center; justify-content: center; }
+
+    /* colunas fixas em px ou frações assimétricas empilham */
+    .admin-main [style*="380px"], .admin-main [style*="420px"], .admin-main [style*="360px"], .admin-main [style*="220px"],
+    .admin-main [style*="2fr 1fr"], .admin-main [style*="1.7fr"], .admin-main [style*="1fr 1fr 1fr"] { grid-template-columns: 1fr !important; }
+
+    /* tabelas rolam na horizontal dentro do próprio cartão */
+    .tbl-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+    .tbl-scroll > table { min-width: 620px; }
+
+    /* gráficos nunca passam da largura do cartão */
+    canvas { max-width: 100% !important; }
+    .admin-main [class*="chart"] { max-width: 100%; min-width: 0; }
+
+    /* janelas (modais) cabem na tela */
+    .modal-box { width: auto !important; max-width: calc(100vw - 24px) !important; max-height: 90vh; overflow-y: auto; }
+
+    /* alvos de toque maiores */
+    .btn-admin-primary, .btn-admin-ghost { padding: 13px 20px; }
+}
+
+@media (max-width: 560px) {
+    .admin-main [style*="grid-template-columns"], .kpi-grid, .status-strip { grid-template-columns: 1fr 1fr !important; }
+    .admin-main form [style*="grid-template-columns"], .admin-main [style*="repeat(4"] { grid-template-columns: 1fr !important; }
+    .admin-topbar h1 { font-size: 21px; }
+}

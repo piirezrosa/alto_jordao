@@ -259,7 +259,7 @@ function aj_estrelas($n) { $n = (int)round($n); return str_repeat('★', $n) . '
 
             <div id="reviewsList">
                 <?php if (empty($avaliacoes)): ?>
-                    <p class="aj-noreview" id="noReviewsMessage">Ainda não há avaliações aprovadas. Seja a primeira pessoa a avaliar.</p>
+                    <p class="aj-noreview" id="noReviewsMessage">Ainda não há avaliações para este produto. Seja a primeira pessoa a avaliar.</p>
                 <?php endif; ?>
                 <?php foreach ($avaliacoes as $av): ?>
                 <div class="aj-review">

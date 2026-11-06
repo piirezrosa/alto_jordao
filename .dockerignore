@@ -1,0 +1,6 @@
+.git
+.env
+code/.env
+*.ajenc
+docker
+README.md

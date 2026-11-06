@@ -1,0 +1,45 @@
+# Uso:  cp .env.docker.example .env   (preencha)   e depois   docker compose up -d --build
+services:
+  web:
+    build: .
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Arquivos enviados pelos administradores/clientes precisam sobreviver a rebuilds
+      - uploads_produtos:/var/www/html/img/produtos
+      - uploads_marcas:/var/www/html/img/marcas
+      - uploads_devolucoes:/var/www/html/img/devolucoes
+      - relatorios:/var/www/html/relatorios_seguros
+    restart: unless-stopped
+
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASS:?defina DB_ROOT_PASS no .env}
+      MARIADB_DATABASE: ${DB_NAME:-alto_jordao}
+      MARIADB_USER: ${DB_USER:-alto}
+      MARIADB_PASSWORD: ${DB_PASS:?defina DB_PASS no .env}
+    volumes:
+      - dbdata:/var/lib/mysql
+      # Scripts .sql desta pasta rodam na ordem alfabética, só na primeira criação do banco
+      - ./docker/db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  dbdata:
+  uploads_produtos:
+  uploads_marcas:
+  uploads_devolucoes:
+  relatorios:

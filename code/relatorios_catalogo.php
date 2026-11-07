@@ -259,6 +259,63 @@ function rel_catalogo(): array
             return ['colunas' => ['Motivo', 'Solicitações', 'Aprovadas', 'Recusadas', 'Pendentes', '% do total'], 'linhas' => $out];
         },
     ],
+    // ═════════════ PEDIDOS E FINANCEIRO ═════════════
+    'pedidos' => [
+        'grupo' => 'Pedidos e financeiro', 'titulo' => 'Pedidos do período',
+        'desc' => 'Todos os pedidos (qualquer status) com cliente, pagamento, valores, frete, rastreio e cupom.', 'filtros' => ['periodo'],
+        'gerar' => function (PDO $pdo, array $p, bool $super): array {
+            $st = $pdo->prepare("
+                SELECT pe.*, u.nome AS cliente_nome, u.email AS cliente_email
+                FROM pedidos pe LEFT JOIN usuarios u ON u.id = pe.usuario_id
+                WHERE DATE(pe.data_pedido) BETWEEN ? AND ?
+                ORDER BY pe.data_pedido DESC");
+            $st->execute([$p['data_ini'], $p['data_fim']]);
+            $col = ['Pedido', 'Data', 'Cliente', 'E-mail', 'Status', 'Pagamento', 'Subtotal (R$)', 'Desconto (R$)', 'Cupom', 'Frete cobrado (R$)', 'Total (R$)', 'Transportadora', 'Código de rastreio'];
+            if ($super) array_push($col, 'Frete pago à transportadora (R$)', 'Taxa do gateway (R$)');
+            $out = [];
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $n = fn($k) => (isset($r[$k]) && $r[$k] !== '') ? round((float)$r[$k], 2) : null;
+                $l = [(int)$r['id'], rel_data($r['data_pedido'], true), $r['cliente_nome'], $r['cliente_email'], $r['status'], $r['forma_pagamento'] ?? '',
+                      $n('subtotal'), $n('desconto') ?? $n('desconto_cupom'), $r['cupom_codigo'] ?? '', $n('frete'), $n('total'),
+                      $r['transportadora'] ?? '', $r['codigo_rastreio'] ?? ''];
+                if ($super) { $l[] = $n('frete_custo'); $l[] = $n('taxa_gateway'); }
+                $out[] = $l;
+            }
+            return ['colunas' => $col, 'linhas' => $out];
+        },
+    ],
+    'financeiro_resumo' => [
+        'grupo' => 'Pedidos e financeiro', 'titulo' => 'Resumo financeiro (DRE)',
+        'desc' => 'Receita, custos, margem de contribuição, despesas fixas e lucro líquido do período. Somente superadmin.', 'filtros' => ['periodo'], 'somente_super' => true,
+        'gerar' => function (PDO $pdo, array $p, bool $super): array {
+            if (!$super) return ['colunas' => ['Aviso'], 'linhas' => [['Acesso restrito ao superadmin']]];
+            $r = fin_resumo($pdo, $p['data_ini'], $p['data_fim']);
+            $f = fn($k) => round((float)$r[$k], 2);
+            $L = [
+                ['Pedidos faturados', (int)$r['n_pedidos'], ''],
+                ['Receita de produtos', $f('receita_produtos'), ''],
+                ['(-) Descontos', $f('descontos'), ''],
+                ['(+) Frete cobrado', $f('frete_cobrado'), ''],
+                ['= Receita total', $f('receita'), ''],
+                ['(-) Devoluções aprovadas', $f('devolucoes'), ''],
+                ['(-) Custo dos produtos vendidos', $f('cmv'), $r['itens_sem_custo'] ? $r['itens_sem_custo'] . ' item(ns) sem custo cadastrado' : ''],
+                ['(+) Custo recuperado em devoluções', $f('cmv_recuperado'), ''],
+                ['(-) Taxas do gateway', $f('taxas_gateway'), ''],
+                ['(-) Impostos', $f('impostos'), ''],
+                ['(-) Frete pago à transportadora', $f('frete_custo'), $r['n_frete_estimado'] ? $r['n_frete_estimado'] . ' pedido(s) com frete estimado' : ''],
+                ['(-) Embalagem', $f('embalagem'), ''],
+                ['= Margem de contribuição', $f('margem_contribuicao'), $r['margem_contribuicao_pct'] . '% da receita'],
+                ['(-) Despesas fixas (rateadas)', $f('despesas_fixas'), ''],
+                ['= Lucro líquido', $f('lucro_liquido'), $r['lucro_liquido_pct'] . '% da receita'],
+                ['Ticket médio', $f('ticket_medio'), ''],
+                ['Ponto de equilíbrio (receita)', $r['ponto_equilibrio'] !== null ? round((float)$r['ponto_equilibrio'], 2) : null, ''],
+            ];
+            foreach ((array)($r['despesas_categorias'] ?? []) as $cat => $v) $L[] = ['   Despesa: ' . $cat, round((float)$v, 2), ''];
+            // linhas que começam com "=" ou "(" são rótulos: o guard de injeção só age em = + - @, então prefixamos
+            foreach ($L as &$x) { if ($x[0][0] === '=') $x[0] = 'Total — ' . ltrim(substr($x[0], 1)); } unset($x);
+            return ['colunas' => ['Item', 'Valor (R$ ou quantidade)', 'Observação'], 'linhas' => $L];
+        },
+    ],
     ];
 }
 

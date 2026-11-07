@@ -15,7 +15,7 @@ $super = $_SESSION['usuario_nivel'] === 'superadmin';
 
 function e($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 
-$catalogo = rel_catalogo();
+$catalogo = array_filter(rel_catalogo(), fn($r) => $super || empty($r['somente_super']));
 $sel      = $_GET['r'] ?? '';
 $previa   = null; $erro = '';
 

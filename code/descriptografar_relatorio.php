@@ -363,6 +363,24 @@ $info_arquivo = empty($erro_fatal) ? CriptografiaAES::infoArquivo(file_get_conte
         </table>
         <?php endif; ?>
 
+        <!-- TABELA GENÉRICA (relatórios do catálogo de exportação) -->
+        <?php if(!empty($dados['tabela']['colunas'])): $tb = $dados['tabela']; $nl = count($tb['linhas']); ?>
+        <div class="sec-titulo"><?= htmlspecialchars($tb['titulo'] ?? 'Relatório') ?> (<?= $nl ?> <?= $nl === 1 ? 'linha' : 'linhas' ?>)</div>
+        <div style="overflow-x:auto;">
+        <table class="tbl">
+            <thead><tr><?php foreach($tb['colunas'] as $c): ?><th style="white-space:nowrap;"><?= htmlspecialchars($c) ?></th><?php endforeach; ?></tr></thead>
+            <tbody>
+            <?php foreach(array_slice($tb['linhas'], 0, 300) as $l): ?>
+            <tr><?php foreach($l as $v): ?><td><?= htmlspecialchars((string)$v) ?></td><?php endforeach; ?></tr>
+            <?php endforeach; ?>
+            <?php if($nl > 300): ?>
+            <tr><td colspan="<?= count($tb['colunas']) ?>" style="text-align:center;color:#888;font-size:12px;padding:16px;">+ <?= $nl-300 ?> linhas adicionais (exibindo 300)</td></tr>
+            <?php endif; ?>
+            </tbody>
+        </table>
+        </div>
+        <?php endif; ?>
+
         <!-- HASH DE INTEGRIDADE -->
         <div class="sec-titulo">Integridade do Documento</div>
         <div style="background:#f8f9fa;border-radius:12px;padding:16px;font-family:monospace;font-size:12px;word-break:break-all;color:#333;">

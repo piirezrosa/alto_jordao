@@ -20,6 +20,7 @@ require_once 'config.php';
 require_once 'alertas_helpers.php';
 require_once 'financeiro_helpers.php';
 require_once 'CriptografiaAES.php';
+require_once 'relatorios_catalogo.php';   // mesmos relatórios da tela de exportação CSV
 
 // Proteção de acesso
 if (!isset($_SESSION['usuario_nivel']) ||
@@ -29,6 +30,11 @@ if (!isset($_SESSION['usuario_nivel']) ||
 
 $erro    = '';
 $sucesso = '';
+$super   = ($_SESSION['usuario_nivel'] === 'superadmin');
+$catalogo_rel = rel_catalogo();
+// Relatórios com dinheiro/custo da loja: só superadmin
+$tipos_so_super = ['financeiro_mensal', 'financeiro_anual', 'margem_lucro'];
+foreach ($catalogo_rel as $k => $r) { if (!empty($r['somente_super'])) $tipos_so_super[] = 'rel_' . $k; }
 
 // Garante a pasta de armazenamento
 $pasta = __DIR__ . '/relatorios_seguros/';
@@ -78,11 +84,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['gerar'])) {
         $erro = 'As senhas não coincidem.';
     } elseif ($data_fim < $data_ini) {
         $erro = 'Data final deve ser maior que a inicial.';
+    } elseif (!$super && in_array($tipo, $tipos_so_super, true)) {
+        $erro = 'Este relatório é restrito ao superadmin.';
+    } elseif (strncmp($tipo, 'rel_', 4) !== 0 && !in_array($tipo, ['financeiro_mensal','financeiro_anual','margem_lucro','produtos_desempenho','clientes'], true)) {
+        $erro = 'Tipo de relatório inválido.';
     } else {
 
         try {
             // ── COLETA DE DADOS CONFORME TIPO ─────────────
-            $dados_relatorio = coletarDados($pdo, $tipo, $data_ini, $data_fim);
+            if (strncmp($tipo, 'rel_', 4) === 0) {
+                $rid = substr($tipo, 4);
+                if (!isset($catalogo_rel[$rid])) throw new Exception('Tipo de relatório inválido.');
+                $par = rel_parametros($catalogo_rel[$rid]['filtros'], ['data_ini' => $data_ini, 'data_fim' => $data_fim,
+                                      'dias' => $_POST['dias'] ?? '', 'limite' => $_POST['limite'] ?? '']);
+                $t = $catalogo_rel[$rid]['gerar']($pdo, $par, $super);
+                $dados_relatorio = ['tabela' => [
+                    'titulo' => $catalogo_rel[$rid]['titulo'],
+                    'colunas' => $t['colunas'],
+                    'linhas' => array_map(fn($l) => array_map('rel_celula', $l), $t['linhas']),
+                ]];
+            } else {
+                $dados_relatorio = coletarDados($pdo, $tipo, $data_ini, $data_fim);
+            }
 
             // Estrutura do relatório
             $relatorio = [
@@ -113,6 +136,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['gerar'])) {
                 'clientes'             => 'Clientes',
                 'margem_lucro'         => 'Margem_Lucro',
             ];
+            foreach ($catalogo_rel as $k => $r) {
+                $tipos_labels['rel_' . $k] = preg_replace('/[^A-Za-z0-9]+/', '_', iconv('UTF-8', 'ASCII//TRANSLIT', $r['titulo']) ?: $k);
+            }
 
             $nome_arquivo = sprintf(
                 '%s_%s_ate_%s_%s.ajenc',
@@ -396,6 +422,7 @@ $pagina_atual = 'relatorio.criptografado';
                 'clientes'            => '👥',
                 'margem_lucro'        => '📈',
             ];
+            foreach ($catalogo_rel as $k => $r) { $icones['rel_' . $k] = '📑'; }
             foreach($relatorios as $r):
                 $existe = file_exists(__DIR__ . '/' . $r['arquivo']);
             ?>
@@ -436,11 +463,16 @@ $pagina_atual = 'relatorio.criptografado';
                     <label>Tipo de Relatório</label>
                     <select name="tipo" required>
                         <option value="">Selecione...</option>
+                        <?php if ($super): ?>
                         <option value="financeiro_mensal">💰 Financeiro Mensal</option>
                         <option value="financeiro_anual">📅 Financeiro Anual</option>
                         <option value="margem_lucro">📈 Margem de Lucro (bruta + DRE)</option>
+                        <?php endif; ?>
                         <option value="produtos_desempenho">📦 Desempenho de Produtos</option>
                         <option value="clientes">👥 Base de Clientes</option>
+                        <?php foreach ($catalogo_rel as $k => $r): if (!$super && !empty($r['somente_super'])) continue; ?>
+                        <option value="rel_<?= $k ?>" data-filtros="<?= htmlspecialchars(implode(',', $r['filtros'])) ?>">📑 <?= htmlspecialchars($r['grupo'] . ' — ' . $r['titulo']) ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="input-group">
@@ -452,6 +484,14 @@ $pagina_atual = 'relatorio.criptografado';
                     <label>Data de Fim</label>
                     <input type="date" name="data_fim"
                            value="<?= date('Y-m-d') ?>" required>
+                </div>
+                <div class="input-group" id="gDias" style="display:none;">
+                    <label>Janela de vendas (dias)</label>
+                    <input type="number" name="dias" min="1" max="730" value="30">
+                </div>
+                <div class="input-group" id="gLimite" style="display:none;">
+                    <label>Estoque até (un.)</label>
+                    <input type="number" name="limite" min="0" max="9999" value="5">
                 </div>
                 <div class="input-group">
                     <label>Senha de Proteção *</label>
@@ -477,6 +517,15 @@ $pagina_atual = 'relatorio.criptografado';
     </div>
 </main>
 
+<script>
+(function(){
+    var sel = document.querySelector('select[name="tipo"]');
+    function f(){ var o = sel.options[sel.selectedIndex], l = (o && o.dataset.filtros) ? o.dataset.filtros.split(',') : [];
+        document.getElementById('gDias').style.display = l.indexOf('dias') >= 0 ? '' : 'none';
+        document.getElementById('gLimite').style.display = l.indexOf('limite') >= 0 ? '' : 'none'; }
+    sel.addEventListener('change', f); f();
+})();
+</script>
 <script src="script.js?v=<?= time() ?>"></script>
 </body>
 </html>

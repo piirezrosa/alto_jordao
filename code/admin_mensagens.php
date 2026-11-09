@@ -45,6 +45,9 @@ $pagina_atual = 'mensagens';
     <link rel="stylesheet" href="style.css?v=<?= time() ?>">
     <link rel="stylesheet" href="admin_style.css?v=<?= time() ?>">
     <style>
+        .tabs { display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
+        .tab-btn { padding:9px 20px; border-radius:50px; border:1px solid var(--border); background:var(--white); color:var(--text2); font-size:12px; font-weight:700; text-decoration:none; }
+        .tab-btn.active { background:var(--black); color:var(--white); border-color:var(--black); }
         .msg-card { background:var(--white); border:1px solid var(--border); border-radius:24px; padding:22px 26px; margin-bottom:14px; }
         .msg-card.nova { border-left:4px solid var(--black); }
         .msg-card.respondida { opacity:.65; }
@@ -87,7 +90,9 @@ $pagina_atual = 'mensagens';
         </div>
         <div class="msg-body"><?= e($m['mensagem']) ?></div>
         <div class="msg-acoes">
-            <a class="b pri" href="mailto:<?= e($m['email']) ?>?subject=<?= rawurlencode($assunto_resp) ?>">Responder por e-mail</a>
+            <a class="b pri" target="_blank" rel="noopener" href="https://mail.google.com/mail/?view=cm&fs=1&to=<?= rawurlencode($m['email']) ?>&su=<?= rawurlencode($assunto_resp) ?>">Responder no Gmail</a>
+            <a class="b" href="mailto:<?= e($m['email']) ?>?subject=<?= rawurlencode($assunto_resp) ?>">Outro programa de e-mail</a>
+            <button type="button" class="b" onclick="copiarEmail(this, <?= e(json_encode($m['email'])) ?>)">Copiar e-mail</button>
             <form method="POST"><input type="hidden" name="csrf" value="<?= e($csrf) ?>"><input type="hidden" name="id" value="<?= (int)$m['id'] ?>">
                 <?php if ($m['status'] === 'nova'): ?><button class="b" name="acao" value="respondida">Marcar como respondida</button>
                 <?php else: ?><button class="b" name="acao" value="reabrir">Reabrir</button><?php endif; ?></form>
@@ -97,5 +102,13 @@ $pagina_atual = 'mensagens';
     </article>
     <?php endforeach; ?>
 </main>
+<script>
+function copiarEmail(btn, email) {
+    const ok = () => { const t = btn.textContent; btn.textContent = 'Copiado!'; setTimeout(() => btn.textContent = t, 1500); };
+    if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(email).then(ok); return; }
+    const i = document.createElement('input'); i.value = email; document.body.appendChild(i); i.select();
+    try { document.execCommand('copy'); ok(); } catch (e) { prompt('Copie o e-mail:', email); } i.remove();
+}
+</script>
 </body>
 </html>

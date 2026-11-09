@@ -421,7 +421,7 @@ body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: anti
 .aj-side a.sair:hover { background: #fff0f0; }
 .aj-panel { background: var(--aj-wash); border-radius: 32px; padding: clamp(24px, 3.5vw, 40px); margin-bottom: 20px; }
 .aj-panel h2 { font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 22px; }
-.aj-panel .aj-form input, .aj-panel .aj-form select { background: #fff; }
+.aj-panel .aj-form input, .aj-panel .aj-form select, .aj-panel .aj-form textarea { background: #fff; }
 .aj-panel .aj-btn { margin-top: 6px; }
 .aj-grid3 { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 0 16px; }
 @media (max-width: 860px) {

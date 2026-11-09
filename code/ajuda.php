@@ -1,8 +1,59 @@
 <?php
 require_once 'config.php';
+require_once 'contato_helpers.php';
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+contato_garantir_schema($pdo);
+
+$erro = '';
+$enviado = isset($_GET['enviado']);
+$v = ['nome' => '', 'email' => '', 'pedido' => '', 'assunto' => '', 'mensagem' => ''];
+
+// Se o cliente está logado, já preenche nome e e-mail
+if (!empty($_SESSION['usuario_id'])) {
+    try {
+        $q = $pdo->prepare("SELECT nome, email FROM usuarios WHERE id = ?");
+        $q->execute([(int)$_SESSION['usuario_id']]);
+        if ($u = $q->fetch(PDO::FETCH_ASSOC)) { $v['nome'] = $u['nome']; $v['email'] = $u['email']; }
+    } catch (Throwable $e) {}
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enviar_contato'])) {
+    foreach (['nome', 'email', 'pedido', 'assunto', 'mensagem'] as $k) { $v[$k] = trim((string)($_POST[$k] ?? '')); }
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+
+    if (!contato_csrf_ok($_POST['csrf'] ?? null)) {
+        $erro = 'Sessão expirada. Atualize a página e tente de novo.';
+    } elseif (!empty($_POST['site'])) {
+        $enviado = true; $erro = '';   // campo-isca preenchido (robô): finge sucesso e não grava
+        $v = array_map(fn() => '', $v);
+    } elseif ($v['nome'] === '' || $v['assunto'] === '' || $v['mensagem'] === '') {
+        $erro = 'Preencha nome, assunto e mensagem.';
+    } elseif (!filter_var($v['email'], FILTER_VALIDATE_EMAIL)) {
+        $erro = 'Informe um e-mail válido para podermos responder.';
+    } elseif (mb_strlen($v['mensagem']) < 10) {
+        $erro = 'Escreva um pouco mais na mensagem, para entendermos sua dúvida.';
+    } else {
+        try {
+            $q = $pdo->prepare("SELECT COUNT(*) FROM mensagens_contato WHERE ip = ? AND data_criacao > DATE_SUB(NOW(), INTERVAL 1 HOUR)");
+            $q->execute([$ip]);
+            if ((int)$q->fetchColumn() >= 5) {
+                $erro = 'Você já enviou várias mensagens. Aguarde um pouco e tente de novo.';
+            } else {
+                $pdo->prepare("INSERT INTO mensagens_contato (usuario_id, nome, email, pedido_numero, assunto, mensagem, ip) VALUES (?,?,?,?,?,?,?)")
+                    ->execute([$_SESSION['usuario_id'] ?? null, mb_substr($v['nome'], 0, 120), mb_substr($v['email'], 0, 160),
+                               $v['pedido'] !== '' ? mb_substr($v['pedido'], 0, 30) : null, mb_substr($v['assunto'], 0, 160),
+                               mb_substr($v['mensagem'], 0, 4000), $ip]);
+                header('Location: ajuda.php?enviado=1#contato'); exit;
+            }
+        } catch (Throwable $e) {
+            error_log('[CONTATO] ' . $e->getMessage());
+            $erro = 'Não foi possível enviar agora. Tente novamente em instantes.';
+        }
+    }
+}
+$h = fn($x) => htmlspecialchars((string)$x, ENT_QUOTES, 'UTF-8');
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
@@ -51,7 +102,7 @@ if (session_status() === PHP_SESSION_NONE) {
             </details>
             <details>
                 <summary>Posso cancelar um pedido?</summary>
-                <p>Pedidos ainda não enviados podem ser cancelados. Fale com a gente pelo e-mail abaixo informando o número do pedido.</p>
+                <p>Pedidos ainda não enviados podem ser cancelados. Fale com a gente pelo formulário abaixo informando o número do pedido.</p>
             </details>
             <details>
                 <summary>Como uso um cupom?</summary>
@@ -60,12 +111,27 @@ if (session_status() === PHP_SESSION_NONE) {
         </div>
     </section>
 
-    <section class="aj-contact">
-        <div>
-            <h2>Ainda com dúvidas?</h2>
-            <p>Escreva para a nossa equipe.</p>
+    <section class="aj-section" id="contato">
+        <div class="aj-section-head"><h2>Ainda com dúvidas?</h2></div>
+        <div class="aj-panel" style="max-width:640px">
+            <?php if ($enviado): ?>
+                <p style="font-weight:700;margin-bottom:6px">Mensagem enviada!</p>
+                <p style="color:var(--aj-soft)">Recebemos sua mensagem e vamos responder no e-mail informado.</p>
+            <?php else: ?>
+            <p style="color:var(--aj-soft);margin-bottom:18px">Escreva para a nossa equipe e responderemos por e-mail.</p>
+            <?php if ($erro): ?><p role="alert" style="color:#c62828;font-weight:600;margin-bottom:14px"><?= $h($erro) ?></p><?php endif; ?>
+            <form method="POST" action="ajuda.php#contato" class="aj-form" novalidate>
+                <input type="hidden" name="csrf" value="<?= $h(contato_csrf_token()) ?>">
+                <div style="position:absolute;left:-9999px" aria-hidden="true"><input type="text" name="site" tabindex="-1" autocomplete="off"></div>
+                <div class="aj-field"><label for="c_nome">Nome</label><input id="c_nome" name="nome" maxlength="120" required value="<?= $h($v['nome']) ?>"></div>
+                <div class="aj-field"><label for="c_email">E-mail</label><input id="c_email" type="email" name="email" maxlength="160" required value="<?= $h($v['email']) ?>"></div>
+                <div class="aj-field"><label for="c_pedido">Número do pedido (opcional)</label><input id="c_pedido" name="pedido" maxlength="30" value="<?= $h($v['pedido']) ?>"></div>
+                <div class="aj-field"><label for="c_assunto">Assunto</label><input id="c_assunto" name="assunto" maxlength="160" required value="<?= $h($v['assunto']) ?>"></div>
+                <div class="aj-field"><label for="c_msg">Mensagem</label><textarea id="c_msg" name="mensagem" rows="5" maxlength="4000" required><?= $h($v['mensagem']) ?></textarea></div>
+                <button class="aj-btn" type="submit" name="enviar_contato" value="1">Enviar mensagem</button>
+            </form>
+            <?php endif; ?>
         </div>
-        <a class="aj-btn" href="mailto:suporte@altojordao.com.br">Enviar e-mail</a>
     </section>
 </main>
 

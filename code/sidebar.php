@@ -7,6 +7,7 @@ $sb_p_pendente      = 0;
 $sb_devolucoes_pend = 0;
 $sb_estoque_critico = 0;
 $sb_alertas         = 0;
+$sb_mensagens       = 0;
 
 if (isset($pdo)) {
     require_once __DIR__ . '/alertas_helpers.php';
@@ -16,6 +17,8 @@ if (isset($pdo)) {
         $sb_devolucoes_pend = (int) $pdo->query("SELECT COUNT(*) FROM devolucoes WHERE status='pendente'")->fetchColumn();
         $sb_estoque_critico = (int) $pdo->query("SELECT COUNT(*) FROM produtos WHERE estoque<=3 AND ativo=1")->fetchColumn();
         $sb_alertas         = alertas_nao_lidos($pdo);
+        require_once __DIR__ . '/contato_helpers.php';
+        $sb_mensagens       = contato_novas($pdo);
     } catch (PDOException $e) {
         // Silencia ou trata o erro para não quebrar o layout caso o banco falhe
     }
@@ -77,6 +80,10 @@ $pag_ativa = $pagina_atual ?? '';
     <div class="sb-section">
         <span class="sb-section-title">Marketing</span>
         <a href="admin_cupons.php" class="sb-item <?= $pag_ativa === 'cupons' ? 'active' : '' ?>">🎟️ Cupons</a>
+        <a href="admin_mensagens.php" class="sb-item <?= $pag_ativa === 'mensagens' ? 'active' : '' ?>">
+            ✉️ Mensagens
+            <?php if($sb_mensagens > 0): ?><span class="sb-badge"><?= $sb_mensagens ?></span><?php endif; ?>
+        </a>
         <a href="admin_avaliacoes.php" class="sb-item <?= $pag_ativa === 'avaliacoes' ? 'active' : '' ?>">⭐ Avaliações</a>
     </div>
 

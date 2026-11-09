@@ -188,7 +188,7 @@ $csrf = fin_csrf_token();
                 <?php endforeach; ?>
             </div>
 
-            <div class="admin-card" style="padding:0; overflow:hidden;">
+            <div class="admin-card" style="padding:26px 28px 14px; overflow-x:auto;">
                 <table class="data-table">
                     <thead><tr><th>Despesa</th><th>Categoria</th><th>Valor</th><th>Vigência</th><th></th></tr></thead>
                     <tbody>

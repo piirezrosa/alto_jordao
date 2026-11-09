@@ -84,6 +84,8 @@ $pagina_atual = 'exportar';
         .msg-err { background:rgba(255,77,77,.08); border:1px solid rgba(255,77,77,.25); color:var(--danger); padding:12px 22px; border-radius:50px; margin-bottom:20px; font-size:13px; font-weight:700; display:inline-block; }
         .dica { background:#f0f7ff; border:1px solid #c8dff7; color:#1565c0; border-radius:14px; padding:12px 16px; font-size:12px; line-height:1.6; margin-bottom:6px; }
         .tbl-previa td, .tbl-previa th { white-space:nowrap; }
+        .previa-scroll { overflow-x:auto; max-width:100%; border-radius:14px; }
+        .previa-scroll .tbl-previa { min-width:max-content; }
     </style>
 </head>
 <body class="admin-page">
@@ -110,14 +112,14 @@ $pagina_atual = 'exportar';
         <?php if ($n === 0): ?>
             <p style="color:var(--muted);font-size:14px;padding:12px 0 6px;">Nenhum dado para esses filtros.</p>
         <?php else: ?>
-        <table class="data-table tbl-previa">
+        <div class="previa-scroll"><table class="data-table tbl-previa">
             <thead><tr><?php foreach ($previa['dados']['colunas'] as $c): ?><th><?= e($c) ?></th><?php endforeach; ?></tr></thead>
             <tbody>
             <?php foreach (array_slice($previa['dados']['linhas'], 0, 100) as $l): ?>
                 <tr><?php foreach ($l as $v): ?><td><?= e(rel_celula($v)) ?></td><?php endforeach; ?></tr>
             <?php endforeach; ?>
             </tbody>
-        </table>
+        </table></div>
         <?php endif; ?>
     </div>
     <?php endif; ?>

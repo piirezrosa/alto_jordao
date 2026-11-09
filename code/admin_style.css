@@ -539,3 +539,9 @@ body.admin-page {
     .admin-main form [style*="grid-template-columns"], .admin-main [style*="repeat(4"] { grid-template-columns: 1fr !important; }
     .admin-topbar h1 { font-size: 21px; }
 }
+
+/* Tabelas largas (ex.: prévia dos relatórios) rolam dentro do cartão em qualquer tela,
+   em vez de empurrar o layout para fora do monitor */
+.admin-main { min-width: 0; }
+.admin-card { min-width: 0; max-width: 100%; }
+.tbl-scroll { overflow-x: auto; max-width: 100%; }

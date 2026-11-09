@@ -101,6 +101,30 @@ code/
 
 ---
 
+## Docker e produção
+
+**Teste local em contêiner**
+
+```
+cp .env.docker.example .env        # preencha as senhas do banco
+docker compose up -d --build       # site em http://localhost:8080
+docker compose exec web php criar_superadmin.php "Seu Nome" voce@email.com
+```
+
+O banco é criado a partir de `docker/db/01-schema.sql` (só estrutura). Fotos e relatórios ficam em volumes e sobrevivem a rebuilds.
+
+**Produção com HTTPS (Caddy + Let's Encrypt)**
+
+1. No servidor: preencha `.env` com `DOMINIO=loja.seudominio.com.br` e `SITE_URL=https://loja.seudominio.com.br`; use `PS_SANDBOX=false` etc. só quando for vender de verdade.
+2. Aponte o DNS do domínio para o IP do servidor e libere as portas 80 e 443.
+3. `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`
+4. Crie o admin com o comando `criar_superadmin.php` acima.
+5. Cadastre no PagBank a URL de webhook `https://loja.seudominio.com.br/...` (veja a seção Pagamentos).
+
+**Backup:** `sh docker/backup.sh` gera `backups/AAAAMMDD-HHMM/` com o banco e os arquivos enviados. Agende no cron do servidor e guarde uma cópia fora dele. Restaurar o banco: `gunzip -c banco.sql.gz | docker compose exec -T db sh -c 'mariadb -u"$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE"'`.
+
+**Atualizar o site:** `git pull && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build` (os dados não são tocados).
+
 ## Status
 
 Em desenvolvimento ativo, em ambiente de testes (sandbox de Mercado Pago, PagBank e Melhor Envio).

@@ -1,0 +1,27 @@
+# Produção: HTTPS automático (Caddy + Let's Encrypt) na frente do site.
+# Uso:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Requisitos: DOMINIO e SITE_URL=https://seudominio no .env, DNS apontando para o IP do servidor, portas 80 e 443 abertas.
+services:
+  web:
+    ports: !reset []        # o site só é alcançável pelo Caddy
+    expose:
+      - "80"
+
+  caddy:
+    image: caddy:2
+    environment:
+      DOMINIO: "${DOMINIO:?defina DOMINIO no .env, por exemplo loja.seudominio.com.br}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -17,3 +17,5 @@ Thumbs.db
 *.log
 
 docker/db/02-*.sql
+# Backups gerados por docker/backup.sh
+backups/

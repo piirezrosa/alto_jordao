@@ -22,6 +22,11 @@ function alertas_garantir_schema(PDO $pdo): void
         if (!in_array('usuario_id', $cols, true)) {
             $pdo->exec("ALTER TABLE alertas ADD COLUMN usuario_id INT NULL, ADD INDEX idx_alertas_usuario (usuario_id, lido)");
         }
+        // Pop-up de aviso na tela (cada admin liga/desliga em Config. Alertas; padrão: ligado)
+        $cc = $pdo->query("SHOW COLUMNS FROM alerta_configuracoes")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('notificar_popup', $cc, true)) {
+            $pdo->exec("ALTER TABLE alerta_configuracoes ADD COLUMN notificar_popup TINYINT(1) NOT NULL DEFAULT 1");
+        }
     } catch (Throwable $e) {
         error_log('[ALERTAS SCHEMA] ' . $e->getMessage() . ' — rode code/migrations/2026_10_20_alertas_por_usuario.sql');
     }

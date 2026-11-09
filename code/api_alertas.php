@@ -37,6 +37,15 @@ if ($acao === 'marcar_todos_lidos') {
 // Mantém os alertas atualizados enquanto houver um admin com o painel aberto (no máx. 1x a cada 10 min)
 alertas_analise_se_necessario($pdo, 10);
 
+// Preferência do pop-up (por admin; padrão: ligado)
+$popup = true;
+try {
+    $q = $pdo->prepare("SELECT notificar_popup FROM alerta_configuracoes WHERE usuario_id = ?");
+    $q->execute([(int)$_SESSION['usuario_id']]);
+    $v = $q->fetchColumn();
+    if ($v !== false && $v !== null) $popup = (int)$v === 1;
+} catch (Throwable $e) {}
+
 // Contar alertas não lidos e buscar os últimos 5
 $nao_lidos = $pdo->query("SELECT COUNT(*) FROM alertas WHERE lido=0 AND $minha")->fetchColumn();
 
@@ -67,7 +76,24 @@ foreach ($ultimos as &$a) {
     $a['tempo'] = tempoRelativo($a['data_criacao']);
 }
 
-echo json_encode(['nao_lidos' => (int)$nao_lidos, 'alertas' => $ultimos]);
+// Para o pop-up: alertas não lidos mais novos que o último já avisado (?desde=ID; sem o parâmetro = todos)
+$desde  = max(0, (int)($_GET['desde'] ?? 0));
+$max_id = (int)$pdo->query("SELECT COALESCE(MAX(id),0) FROM alertas WHERE lido=0 AND $minha")->fetchColumn();
+$novos = 0; $novos_lista = [];
+if ($popup) {
+    $novos = (int)$pdo->query("SELECT COUNT(*) FROM alertas WHERE lido=0 AND id > $desde AND $minha")->fetchColumn();
+    if ($novos === 1) {
+        $n = $pdo->query("SELECT id, tipo, titulo, descricao, nivel FROM alertas WHERE lido=0 AND id > $desde AND $minha LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        if ($n) {
+            $n['icone'] = $meta[$n['tipo']]['icone'] ?? '🔔';
+            $n['descricao'] = mb_strimwidth((string)$n['descricao'], 0, 140, '…', 'UTF-8');
+            $novos_lista[] = $n;
+        }
+    }
+}
+
+echo json_encode(['nao_lidos' => (int)$nao_lidos, 'alertas' => $ultimos, 'popup' => $popup,
+                  'max_id' => $max_id, 'novos' => $novos, 'novo' => $novos_lista[0] ?? null]);
 
 function tempoRelativo(string $data): string {
     $diff = time() - strtotime($data);

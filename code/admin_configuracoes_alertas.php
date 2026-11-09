@@ -9,6 +9,7 @@ if (!isset($_SESSION['usuario_nivel']) ||
 }
 
 $usuario_id = $_SESSION['usuario_id'];
+alertas_garantir_schema($pdo);   // garante a coluna notificar_popup
 
 // Salvar configurações de alertas 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -25,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'limiar_estoque_critico'      => (int)($_POST['limiar_estoque_critico']       ?? 3),
         'limiar_margem_minima'        => (float)($_POST['limiar_margem_minima']       ?? 20),
         'notificar_email'             => isset($_POST['notificar_email'])              ? 1 : 0,
+        'notificar_popup'             => isset($_POST['notificar_popup'])              ? 1 : 0,
         'email_alternativo'           => trim($_POST['email_alternativo']             ?? ''),
     ];
 
@@ -35,8 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              alerta_pedido_parado, alerta_avaliacao_negativa, alerta_devolucao_alta,
              alerta_margem_baixa, limiar_taxa_devolucao, limiar_nota_media,
              limiar_dias_pedido_parado, limiar_estoque_critico, limiar_margem_minima,
-             notificar_email, email_alternativo)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             notificar_email, notificar_popup, email_alternativo)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON DUPLICATE KEY UPDATE
             alerta_produto_problematico = VALUES(alerta_produto_problematico),
             alerta_estoque_critico      = VALUES(alerta_estoque_critico),
@@ -50,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             limiar_estoque_critico      = VALUES(limiar_estoque_critico),
             limiar_margem_minima        = VALUES(limiar_margem_minima),
             notificar_email             = VALUES(notificar_email),
+            notificar_popup             = VALUES(notificar_popup),
             email_alternativo           = VALUES(email_alternativo)
     ")->execute(array_merge([$usuario_id], array_values($campos)));
 
@@ -76,9 +79,11 @@ if (!$cfg) {
         'limiar_estoque_critico'      => 3,
         'limiar_margem_minima'        => 20,
         'notificar_email'             => 0,
+        'notificar_popup'             => 1,
         'email_alternativo'           => '',
     ];
 }
+$cfg['notificar_popup'] = $cfg['notificar_popup'] ?? 1;
 
 $c_nao_lidos     = alertas_nao_lidos($pdo);
 $devolucoes_pend = $pdo->query("SELECT COUNT(*) FROM devolucoes WHERE status='pendente'")->fetchColumn();
@@ -265,6 +270,20 @@ $pagina_atual = 'config.alertas';
                            value="<?= $cfg['limiar_margem_minima'] ?>">
                     <small>Alertar se margem estimada cair abaixo deste %</small>
                 </div>
+            </div>
+
+            <!-- Pop-up -->
+            <div class="section-divider">Aviso na Tela</div>
+
+            <div class="alerta-toggle-row">
+                <div class="toggle-info">
+                    <strong>🔔 Pop-up de alertas</strong>
+                    <p>Mostra um aviso no canto da tela ao entrar no painel e quando surgem alertas novos: o motivo, se for só um, ou “Você tem N alertas”, se forem vários. Vale só para o seu perfil.</p>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" name="notificar_popup" value="1" <?= $cfg['notificar_popup']?'checked':''?>>
+                    <span class="toggle-slider"></span>
+                </label>
             </div>
 
             <!-- E-mail -->

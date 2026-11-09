@@ -126,37 +126,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <?php if (in_array($_SESSION['usuario_nivel'] ?? '', ['admin','superadmin'], true)): ?>
 <style>
-    #ajToast { position:fixed; right:22px; bottom:22px; z-index:9999; display:flex; flex-direction:column; gap:8px; max-width:340px; }
-    .aj-toast-item { background:#111; color:#fff; border-radius:14px; padding:12px 16px; font-size:13px; box-shadow:0 8px 24px rgba(0,0,0,.25); border-left:4px solid #f57c00; cursor:pointer; }
+    #ajToast { position:fixed; right:22px; top:22px; z-index:9999; display:flex; flex-direction:column; gap:10px; width:min(360px, calc(100vw - 32px)); pointer-events:none; }
+    .aj-toast-item { pointer-events:auto; position:relative; background:#111; color:#fff; border-radius:18px; padding:14px 40px 14px 16px; font-size:13px; line-height:1.45; box-shadow:0 12px 32px rgba(0,0,0,.3); border-left:5px solid #f57c00; cursor:pointer; animation:ajToastIn .35s ease; }
     .aj-toast-item.critico { border-left-color:#d32f2f; }
-    .aj-toast-item small { display:block; opacity:.7; margin-top:2px; }
+    .aj-toast-item strong { display:block; font-size:14px; }
+    .aj-toast-item small { display:block; opacity:.7; margin-top:3px; }
+    .aj-toast-x { position:absolute; top:8px; right:10px; background:none; border:0; color:#fff; opacity:.6; font-size:18px; cursor:pointer; line-height:1; }
+    .aj-toast-x:hover { opacity:1; }
+    @keyframes ajToastIn { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:none; } }
 </style>
-<div id="ajToast"></div>
+<div id="ajToast" aria-live="polite"></div>
 <script>
-// Consulta api_alertas.php a cada 60 s: atualiza o selo da sidebar e avisa de alertas novos
+// Consulta api_alertas.php a cada 60 s: atualiza o selo da sidebar e mostra o pop-up (se o admin não o desativou em Config. Alertas).
+// Pop-up: 1 alerta novo → mostra o motivo; vários → "Você tem N alertas". Ao abrir o painel avisa dos não lidos uma vez por sessão.
 (function () {
-    let ultimoMax = null;
+    const CHAVE = 'ajAlertaAvisado';
+    function lerVisto() { try { const v = sessionStorage.getItem(CHAVE); return v === null ? null : parseInt(v, 10) || 0; } catch (e) { return null; } }
+    function gravarVisto(n) { try { sessionStorage.setItem(CHAVE, String(n)); } catch (e) {} }
+    let visto = lerVisto();   // null = primeira vez nesta sessão do navegador → avisa de todos os não lidos
+
+    function toast(titulo, sub, critico) {
+        const box = document.getElementById('ajToast');
+        const t = document.createElement('div');
+        t.className = 'aj-toast-item' + (critico ? ' critico' : '');
+        const tt = document.createElement('strong'); tt.textContent = titulo;
+        t.appendChild(tt);
+        if (sub) { const s = document.createElement('small'); s.textContent = sub; t.appendChild(s); }
+        const x = document.createElement('button'); x.type = 'button'; x.className = 'aj-toast-x'; x.setAttribute('aria-label', 'Fechar'); x.textContent = '×';
+        x.onclick = (ev) => { ev.stopPropagation(); t.remove(); };
+        t.appendChild(x);
+        t.onclick = () => { window.location = 'admin_alertas.php'; };
+        box.appendChild(t);
+        setTimeout(() => t.remove(), 15000);
+    }
+
     async function checar() {
         try {
-            const r = await fetch('api_alertas.php', { cache: 'no-store' });
+            const r = await fetch('api_alertas.php?desde=' + (visto ?? 0), { cache: 'no-store' });
             const d = await r.json();
             const b = document.getElementById('sbBadgeAlertas');
             if (b) { b.textContent = d.nao_lidos; b.style.display = d.nao_lidos > 0 ? '' : 'none'; }
-            const ids = (d.alertas || []).map(a => a.id);
-            const maxId = ids.length ? Math.max(...ids) : 0;
-            if (ultimoMax !== null) {
-                (d.alertas || []).filter(a => a.id > ultimoMax).forEach(a => {
-                    const t = document.createElement('div');
-                    t.className = 'aj-toast-item ' + (a.nivel === 'critico' ? 'critico' : '');
-                    const tt = document.createElement('strong'); tt.textContent = (a.icone || '🔔') + ' ' + a.titulo;
-                    const sm = document.createElement('small'); sm.textContent = 'Clique para ver';
-                    t.append(tt, sm);
-                    t.onclick = () => { window.location = 'admin_alertas.php'; };
-                    document.getElementById('ajToast').appendChild(t);
-                    setTimeout(() => t.remove(), 12000);
-                });
+            if (d.popup && d.novos > 0) {
+                if (d.novos === 1 && d.novo) {
+                    toast((d.novo.icone || '🔔') + ' ' + d.novo.titulo, (d.novo.descricao || '') || 'Clique para ver', d.novo.nivel === 'critico');
+                } else {
+                    const total = Math.max(d.novos, d.nao_lidos || 0);
+                    toast('🔔 Você tem ' + total + ' alertas', 'Clique para ver todos', (d.alertas || []).some(a => a.nivel === 'critico'));
+                }
             }
-            ultimoMax = Math.max(ultimoMax ?? 0, maxId);
+            if (d.max_id > (visto ?? 0)) { visto = d.max_id; gravarVisto(visto); }
+            else if (visto === null) { visto = 0; gravarVisto(0); }
         } catch (e) { /* sem conexão: tenta de novo no próximo ciclo */ }
     }
     checar();

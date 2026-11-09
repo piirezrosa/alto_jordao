@@ -50,6 +50,7 @@ function alertas_executar_analise(PDO $pdo): array
 {
     alertas_garantir_schema($pdo);
     $log = [];
+    $max_antes = (int)$pdo->query("SELECT COALESCE(MAX(id),0) FROM alertas")->fetchColumn();   // para contar o que foi criado por admin
     // ── BUSCA CONFIGURAÇÕES DE TODOS OS ADMINS ────────────────
     $padrao_cfg = [
             'alerta_produto_problematico' => 1, 'alerta_estoque_critico' => 1, 'alerta_pedido_parado' => 1,
@@ -347,7 +348,13 @@ function alertas_executar_analise(PDO $pdo): array
         VALUES ('analise_produtos_executada', 'alertas', ?)
     ")->execute(["Total de alertas gerados: $total_alertas | Produtos analisados: " . count($produtos)]);
 
-    return ['total' => $total_alertas, 'produtos' => count($produtos), 'log' => $log];
+    // Quantos alertas novos ficaram com CADA admin (alertas são por perfil: quem roda a análise só vê os seus)
+    $por_usuario = [];
+    foreach ($pdo->query("SELECT usuario_id, COUNT(*) AS n FROM alertas WHERE id > $max_antes GROUP BY usuario_id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $por_usuario[(int)$r['usuario_id']] = (int)$r['n'];
+    }
+
+    return ['total' => $total_alertas, 'produtos' => count($produtos), 'log' => $log, 'por_usuario' => $por_usuario];
 }
 
 /** Roda a análise se a última execução foi há mais de $minutos. Nunca derruba a página que a chamou. */

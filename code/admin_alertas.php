@@ -28,7 +28,8 @@ if (isset($_GET['rodar_analise']) && $_SESSION['usuario_nivel'] === 'superadmin'
     try {
         $r = alertas_executar_analise($pdo);
         $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('alertas_ultima_analise', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)")->execute([(string)time()]);
-        header("Location: admin_alertas.php?msg=analise_ok&novos=" . (int)$r['total'] . "&prod=" . (int)$r['produtos']); exit;
+        $meus = (int)(($r['por_usuario'][(int)$_SESSION['usuario_id']] ?? 0) + ($r['por_usuario'][0] ?? 0));   // 0 = alerta global (sem dono)
+        header("Location: admin_alertas.php?msg=analise_ok&novos=" . (int)$r['total'] . "&meus=" . $meus . "&prod=" . (int)$r['produtos']); exit;
     } catch (Throwable $e) {
         error_log('[ALERTAS] ' . $e->getMessage());
         header("Location: admin_alertas.php?msg=analise_erro&detalhe=" . urlencode(mb_substr($e->getMessage(), 0, 200))); exit;
@@ -185,7 +186,13 @@ $pagina_atual = 'alertas';
         <?php
         $msgs = [
             'todos_lidos' => '✓ Todos os alertas marcados como lidos.',
-            'analise_ok'  => '✓ Análise executada: ' . (int)($_GET['novos'] ?? 0) . ' novo(s) alerta(s) em ' . (int)($_GET['prod'] ?? 0) . ' produtos analisados.',
+            'analise_ok'  => (function () {
+                $t = (int)($_GET['novos'] ?? 0); $m = (int)($_GET['meus'] ?? $t); $p = (int)($_GET['prod'] ?? 0);
+                $s = "✓ Análise executada ($p produtos analisados): $m novo(s) alerta(s) para você";
+                if ($t > $m) $s .= ' e ' . ($t - $m) . ' para outros administradores (cada admin recebe só o que a própria configuração pede)';
+                if ($t > 0 && $m === 0) $s .= '. Para receber esse tipo de alerta, ative-o em Config. Alertas';
+                return $s . '.';
+            })(),
             'analise_erro' => '⚠ A análise falhou: ' . htmlspecialchars($_GET['detalhe'] ?? ''),
         ];
         echo $msgs[$_GET['msg']] ?? '';

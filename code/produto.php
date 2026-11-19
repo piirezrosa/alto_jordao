@@ -28,7 +28,13 @@ $strTamanho = $p['tamanho'] ?? $p['TAMANHO'] ?? '';
 $strCor = $p['cor'] ?? $p['COR'] ?? '';
 
 $tamanhosDisponiveis = array_filter(array_map('trim', explode(',', $strTamanho)));
-$coresDisponiveis = array_filter(array_map('trim', explode(',', $strCor)));
+// Cores separadas por vírgula ou ponto e vírgula; remove repetidas ("Off-White" e "off-white" são a mesma)
+$coresDisponiveis = [];
+foreach (preg_split('/[,;]+/', (string)$strCor) as $c) {
+    $c = trim($c);
+    if ($c !== '') $coresDisponiveis[mb_strtolower($c, 'UTF-8')] = $c;
+}
+$coresDisponiveis = array_values($coresDisponiveis);
 
 $produtoJson = htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8');
 
@@ -97,14 +103,7 @@ $esgotado   = $estoque !== null && $estoque <= 0;
 $img_prod   = !empty($p['imagem']) ? 'img/produtos/' . $p['imagem'] : 'img/placeholder.jpg';
 $generos    = ['masculino' => ['masculino.php', 'Masculino'], 'feminino' => ['feminino.php', 'Feminino'], 'kids' => ['kids.php', 'Kids'], 'unissex' => ['lancamentos.php', 'Lançamentos']];
 $crumb_g    = $generos[strtolower((string)($p['genero'] ?? ''))] ?? ['lancamentos.php', 'Lançamentos'];
-$coresMap = [
-    'preto' => '#000000', 'branco' => '#FFFFFF', 'off-white' => '#FDFBF7', 'bege' => '#F5F5DC', 'nude' => '#E3BC9A',
-    'caramelo' => '#C68642', 'marrom' => '#8B4513', 'terracota' => '#E2725B', 'cinza-chumbo' => '#36454F',
-    'cinza-claro' => '#D3D3D3', 'azul-marinho' => '#000080', 'jeans' => '#1560BD', 'verde-militar' => '#4B5320',
-    'verde-oliva' => '#808000', 'vinho' => '#800020', 'mostarda' => '#E1AD01', 'rosa-blush' => '#FFD1DC',
-    'lavanda' => '#E6E6FA', 'coral' => '#FF7F50', 'khaki' => '#C3B091', 'marsala' => '#955251', 'azul-bebê' => '#9BB2C7',
-    'vermelho' => '#FF0000', 'azul-royal' => '#4169E1', 'jeans-claro' => '#5DADEC', 'jeans-escuro' => '#1C3F95',
-];
+require_once 'cores_helpers.php';
 function aj_estrelas($n) { $n = (int)round($n); return str_repeat('★', $n) . '<i>' . str_repeat('★', 5 - $n) . '</i>'; }
 ?>
 <!DOCTYPE html>
@@ -165,11 +164,11 @@ function aj_estrelas($n) { $n = (int)round($n); return str_repeat('★', $n) . '
                 <div class="aj-chips" id="container-cores" role="radiogroup" aria-label="Cor">
                     <?php foreach ($coresDisponiveis as $cor):
                         $corNome = trim($cor);
-                        $corCss  = $coresMap[strtolower($corNome)] ?? strtolower($corNome);
+                        $corCss  = aj_cor_css($corNome);   // null = cor sem mapeamento (bolinha listrada)
                     ?>
-                        <button type="button" class="aj-swatch" role="radio" aria-checked="false" aria-label="<?= htmlspecialchars(ucfirst($corNome)) ?>"
+                        <button type="button" class="aj-swatch<?= $corCss === null ? ' sem-cor' : '' ?>" role="radio" aria-checked="false" aria-label="<?= htmlspecialchars(ucfirst($corNome)) ?>"
                                 title="<?= htmlspecialchars(ucfirst($corNome)) ?>" data-valor="<?= htmlspecialchars($corNome) ?>"
-                                style="background-color: <?= htmlspecialchars($corCss) ?>;" onclick="selecionarUnico(this,'cor')"></button>
+                                <?= $corCss !== null ? 'style="background-color: ' . htmlspecialchars($corCss) . ';"' : '' ?> onclick="selecionarUnico(this,'cor')"></button>
                     <?php endforeach; ?>
                 </div>
                 <input type="hidden" id="selected-cor">

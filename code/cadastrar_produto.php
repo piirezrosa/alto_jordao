@@ -78,13 +78,17 @@ $pagina_atual = 'novo_produto';
 
         .form-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(2, minmax(0, 1fr));   /* minmax(0,…): campos largos não estouram o cartão */
             gap: 22px;
         }
 
         .full { grid-column: span 2; }
 
-        .input-group { display: flex; flex-direction: column; gap: 8px; }
+        .input-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+        .input-group small { font-size: 12px; line-height: 1.5; color: var(--muted); }
+        .input-group .dim-row { display: flex; gap: 8px; }
+        .input-group .dim-row input { flex: 1; min-width: 0; }
+        @media (max-width: 700px) { .form-grid { grid-template-columns: minmax(0, 1fr); } .full, .section-divider { grid-column: auto; } }
 
         .input-group label {
             font-size: 10px;
@@ -97,6 +101,9 @@ $pagina_atual = 'novo_produto';
         .input-group input,
         .input-group select,
         .input-group textarea {
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
             padding: 14px 18px;
             border: 1.5px solid var(--border);
             border-radius: 50px;
@@ -127,6 +134,10 @@ $pagina_atual = 'novo_produto';
             border-style: dashed !important;
             cursor: pointer;
             padding: 18px !important;
+        }
+
+        .input-group label.check-group {
+            font-size: 13px; font-weight: 600; color: var(--black); text-transform: none; letter-spacing: 0;
         }
 
         .check-group {
@@ -230,7 +241,7 @@ $pagina_atual = 'novo_produto';
 
                 <div class="input-group">
                     <label>Preço Original / Sem Desconto (R$)</label>
-                    <input type="number" step="0.01" name="preco_antigo" placeholder="Opcional — ativa badge de oferta">
+                    <input type="number" step="0.01" name="preco_antigo" placeholder="Opcional (ativa selo de oferta)">
                 </div>
 
                 <div class="input-group">
@@ -240,15 +251,15 @@ $pagina_atual = 'novo_produto';
 
                 <div class="input-group">
                     <label>Peso (kg)</label>
-                    <input type="number" step="0.001" min="0.01" name="peso_kg" placeholder="Ex.: 0,350 — vazio usa o padrão da loja">
+                    <input type="number" step="0.001" min="0.01" name="peso_kg" placeholder="Ex.: 0,350 (vazio = padrão)">
                 </div>
 
                 <div class="input-group">
                     <label>Embalagem: largura × altura × comprimento (cm)</label>
-                    <div style="display:flex;gap:8px;">
-                        <input type="number" step="0.1" min="1" name="largura_cm"     placeholder="Larg." style="flex:1;">
-                        <input type="number" step="0.1" min="1" name="altura_cm"      placeholder="Alt."  style="flex:1;">
-                        <input type="number" step="0.1" min="1" name="comprimento_cm" placeholder="Comp." style="flex:1;">
+                    <div class="dim-row">
+                        <input type="number" step="0.1" min="1" name="largura_cm"     placeholder="Larg.">
+                        <input type="number" step="0.1" min="1" name="altura_cm"      placeholder="Alt.">
+                        <input type="number" step="0.1" min="1" name="comprimento_cm" placeholder="Comp.">
                     </div>
                     <small>Usados para cotar o frete real. Vazio = medidas padrão da loja (Configurações → Frete).</small>
                 </div>

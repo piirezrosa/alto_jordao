@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <form method="POST" enctype="multipart/form-data" class="user-form">
                     
-                    <div class="profile-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 25px;">
+                    <div class="profile-grid" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 25px;">
                         
                         <div class="input-grupo" style="grid-column: span 2;">
                             <label style="font-weight: 700; font-size: 11px; color: #bbb; letter-spacing: 1px;">NOME DO PRODUTO</label>

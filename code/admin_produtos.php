@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php'; 
+require_once 'relatorios_ui.php';
 
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
     header("Location: login.php"); exit();
@@ -76,6 +77,7 @@ $pagina_atual = 'produtos';
             <p>Performance e catálogo da Alto Jordão em tempo real.</p>
         </div>
         <div class="topbar-actions">
+            <?php rel_exportar_botao(['estoque_atual', 'ranking_produtos', 'produtos_parados'], '⬇ Exportar', 'Exportar produtos'); ?>
             <a href="cadastrar_produto.php" class="btn-admin-primary">+ Novo Produto</a>
         </div>
     </div>

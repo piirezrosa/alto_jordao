@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
 require_once 'financeiro_helpers.php';
 require_once 'pedido_helpers.php';
+require_once 'relatorios_ui.php';
 
 // teste git
 
@@ -382,7 +383,7 @@ $pagina_atual = 'pedidos';
             <p>Gerencie, atualize e acompanhe todos os pedidos em tempo real.</p>
         </div>
         <div class="topbar-actions">
-            <a href="admin_relatorios.php" class="btn-admin-ghost">📥 Exportar</a>
+            <?php rel_exportar_botao(['pedidos', 'melhores_clientes'], '⬇ Exportar', 'Exportar pedidos e clientes'); ?>
         </div>
     </div>
 

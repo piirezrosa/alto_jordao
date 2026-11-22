@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'relatorios_ui.php';
 
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
     header("Location: login.php"); exit();
@@ -128,6 +129,7 @@ $pagina_atual = 'cupons';
 <main class="admin-main">
     <div class="admin-topbar">
         <div><h1>Cupons de Desconto</h1><p>Crie e gerencie cupons promocionais da Alto Jordão.</p></div>
+        <div class="topbar-actions"><?php rel_exportar_botao(['cupons'], '⬇ Exportar', 'Exportar cupons'); ?></div>
     </div>
 
     <?php if(isset($_GET['msg'])): ?>

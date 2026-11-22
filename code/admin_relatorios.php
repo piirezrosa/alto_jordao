@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
 require_once 'alertas_helpers.php';
 require_once 'financeiro_helpers.php';
+require_once 'relatorios_ui.php';
 
 if (!isset($_SESSION['usuario_nivel']) ||
     !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
@@ -225,6 +226,7 @@ $pagina_atual = 'relatorios';
             <h1>Relatórios</h1>
             <p>Análise completa do desempenho da Alto Jordão.</p>
         </div>
+        <div class="topbar-actions"><?php rel_exportar_botao(['ranking_produtos', 'melhores_clientes', 'novos_cadastros', 'devolucoes_motivo', 'financeiro_resumo'], '⬇ Exportar', 'Exportar dados desta análise'); ?></div>
     </div>
 
     <!-- Abas -->

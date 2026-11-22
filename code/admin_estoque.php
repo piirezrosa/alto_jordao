@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'relatorios_ui.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente','operador'])) {
@@ -118,6 +119,7 @@ $pagina_atual = 'estoque';
             <h1>Gestão de Estoque</h1>
             <p>Acompanhe e atualize as quantidades em tempo real.</p>
         </div>
+        <div class="topbar-actions"><?php rel_exportar_botao(['estoque_atual', 'reposicao', 'produtos_parados'], '⬇ Exportar', 'Exportar estoque'); ?></div>
     </div>
 
     <?php if(isset($_GET['msg'])): ?>

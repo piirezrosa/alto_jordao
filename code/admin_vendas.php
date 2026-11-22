@@ -2,6 +2,7 @@
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php'; 
 require_once 'financeiro_helpers.php';
+require_once 'relatorios_ui.php';
 
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
     header("Location: login.php"); exit();
@@ -220,7 +221,7 @@ $pagina_atual = 'financeiro';
             <p>Análise de faturamento e performance da Alto Jordão.</p>
         </div>
         <div class="topbar-actions">
-            <a href="admin_relatorios.php" class="btn-admin-ghost">📥 Exportar</a>
+            <?php rel_exportar_botao(['pedidos', 'ranking_produtos', 'melhores_clientes', 'novos_cadastros', 'cupons', 'financeiro_resumo'], '⬇ Exportar', 'Exportar relatórios de vendas'); ?>
         </div>
     </div>
 

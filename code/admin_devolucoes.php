@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'relatorios_ui.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
@@ -284,6 +285,7 @@ $pagina_atual = 'devolucoes';
             <h1>Trocas e Devoluções</h1>
             <p>Gerencie solicitações de troca e analise evidências de defeitos.</p>
         </div>
+        <div class="topbar-actions"><?php rel_exportar_botao(['devolucoes', 'devolucoes_motivo'], '⬇ Exportar', 'Exportar devoluções'); ?></div>
     </div>
 
     <!-- FEEDBACK -->

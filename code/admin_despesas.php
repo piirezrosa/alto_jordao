@@ -7,6 +7,7 @@
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
 require_once 'financeiro_helpers.php';
+require_once 'relatorios_ui.php';
 
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin', 'superadmin'])) {
     header("Location: login.php"); exit();
@@ -150,7 +151,7 @@ $csrf = fin_csrf_token();
 <main class="admin-main">
     <div class="admin-topbar">
         <div><h1>Despesas Fixas</h1><p>Salários, hospedagem, marketing, contador… entram no lucro líquido, rateadas por dia.</p></div>
-        <div class="topbar-actions"><a href="admin_relatorios.php?aba=dre&periodo=30" class="btn-admin-ghost">📊 Ver DRE</a></div>
+        <div class="topbar-actions"><?php rel_exportar_botao(['financeiro_resumo'], '⬇ Exportar DRE', 'Exportar resumo financeiro'); ?><a href="admin_relatorios.php?aba=dre&periodo=30" class="btn-admin-ghost">📊 Ver DRE</a></div>
     </div>
 
     <?php

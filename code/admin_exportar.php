@@ -5,7 +5,7 @@
  */
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
-require_once 'relatorios_catalogo.php';
+require_once 'relatorios_ui.php';
 
 $niveis = ['admin', 'superadmin'];
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], $niveis, true)) {
@@ -68,18 +68,18 @@ $pagina_atual = 'exportar';
     <link rel="stylesheet" href="admin_style.css?v=<?= time() ?>">
     <style>
         .grupo-titulo { font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin:30px 0 14px; }
-        .rel-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:18px; }
-        .rel-card { background:var(--white); border:1px solid var(--border); border-radius:28px; padding:24px; display:flex; flex-direction:column; gap:14px; }
-        .rel-card.ativo { border-color:var(--black); }
-        .rel-card h3 { font-size:17px; font-weight:800; letter-spacing:-.3px; }
-        .rel-card p { font-size:13px; line-height:1.55; color:var(--text2); }
-        .rel-card form { display:flex; flex-direction:column; gap:12px; margin-top:auto; }
-        .rel-campos { display:flex; flex-wrap:wrap; gap:10px; }
-        .rel-campos label { display:flex; flex-direction:column; gap:5px; font-size:10px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:1px; flex:1 1 120px; }
-        .rel-campos input { padding:11px 14px; border:1.5px solid var(--border); border-radius:50px; font:600 13px var(--font-main); background:var(--grey-bg); color:var(--black); outline:none; min-width:0; }
-        .rel-campos input:focus { border-color:var(--black); background:var(--white); }
-        .rel-acoes { display:flex; gap:8px; flex-wrap:wrap; }
-        .rel-acoes button { flex:1 1 auto; cursor:pointer; }
+        .rel-lista { background:var(--white); border:1px solid var(--border); border-radius:24px; overflow:hidden; }
+        .rel-linha { border-bottom:1px solid var(--border); }
+        .rel-linha:last-child { border-bottom:0; }
+        .rel-linha summary { display:flex; gap:18px; align-items:baseline; padding:16px 24px; cursor:pointer; list-style:none; }
+        .rel-linha summary::-webkit-details-marker { display:none; }
+        .rel-linha summary::before { content:'▸'; color:var(--muted); font-size:12px; transition:transform .15s; }
+        .rel-linha[open] summary::before { transform:rotate(90deg); }
+        .rel-linha summary:hover { background:var(--grey-bg); }
+        .rel-tit { font-size:14px; font-weight:800; flex:0 0 250px; }
+        .rel-desc { font-size:12px; color:var(--text2); line-height:1.5; }
+        .rel-linha-corpo { padding:4px 24px 20px 44px; max-width:640px; }
+        @media (max-width:700px) { .rel-linha summary { flex-wrap:wrap; gap:4px 10px; } .rel-tit { flex-basis:100%; } .rel-linha-corpo { padding-left:24px; } }
         .previa-info { font-size:12px; color:var(--muted); margin:-6px 0 14px; }
         .msg-err { background:rgba(255,77,77,.08); border:1px solid rgba(255,77,77,.25); color:var(--danger); padding:12px 22px; border-radius:50px; margin-bottom:20px; font-size:13px; font-weight:700; display:inline-block; }
         .dica { background:#f0f7ff; border:1px solid #c8dff7; color:#1565c0; border-radius:14px; padding:12px 16px; font-size:12px; line-height:1.6; margin-bottom:6px; }
@@ -99,6 +99,7 @@ $pagina_atual = 'exportar';
     </div>
 
     <?php if ($erro): ?><div class="msg-err"><?= e($erro) ?></div><?php endif; ?>
+    <?php rel_ui_css(); ?>
     <?php if (!$super): ?><div class="dica">Colunas de custo, lucro e margem aparecem apenas para o superadmin.</div><?php endif; ?>
 
     <?php if ($previa): ?>
@@ -124,37 +125,30 @@ $pagina_atual = 'exportar';
     </div>
     <?php endif; ?>
 
+    <input type="search" id="relBusca" placeholder="Buscar relatório…" autocomplete="off"
+           style="width:100%;max-width:420px;padding:12px 20px;border:1.5px solid var(--border);border-radius:50px;font:600 14px var(--font-main);background:var(--white);margin:22px 0 4px;outline:none;">
+
     <?php foreach ($grupos as $nomeGrupo => $itens): ?>
-        <div class="grupo-titulo"><?= e($nomeGrupo) ?></div>
-        <div class="rel-grid">
+        <div class="grupo-titulo"><?= e($nomeGrupo) ?> <span style="font-weight:600;opacity:.6">(<?= count($itens) ?>)</span></div>
+        <div class="rel-lista">
         <?php foreach ($itens as $id => $r):
             $par = rel_parametros($r['filtros'], $sel === $id ? $_GET : []); ?>
-            <section class="rel-card <?= $sel === $id ? 'ativo' : '' ?>">
-                <h3><?= e($r['titulo']) ?></h3>
-                <p><?= e($r['desc']) ?></p>
-                <form method="get">
-                    <input type="hidden" name="r" value="<?= e($id) ?>">
-                    <?php if ($r['filtros']): ?><div class="rel-campos">
-                        <?php if (isset($par['data_ini'])): ?>
-                            <label>De<input type="date" name="data_ini" value="<?= e($par['data_ini']) ?>"></label>
-                            <label>Até<input type="date" name="data_fim" value="<?= e($par['data_fim']) ?>"></label>
-                        <?php endif; ?>
-                        <?php if (isset($par['dias'])): ?>
-                            <label>Janela de vendas (dias)<input type="number" name="dias" min="1" max="730" value="<?= (int)$par['dias'] ?>"></label>
-                        <?php endif; ?>
-                        <?php if (isset($par['limite'])): ?>
-                            <label>Estoque até (un.)<input type="number" name="limite" min="0" max="9999" value="<?= (int)$par['limite'] ?>"></label>
-                        <?php endif; ?>
-                    </div><?php endif; ?>
-                    <div class="rel-acoes">
-                        <button type="submit" class="btn-admin-ghost">Ver prévia</button>
-                        <button type="submit" name="baixar" value="1" class="btn-admin-primary">Baixar CSV</button>
-                    </div>
-                </form>
-            </section>
+            <details class="rel-linha" data-busca="<?= e(mb_strtolower($r['titulo'] . ' ' . $r['desc'] . ' ' . $nomeGrupo, 'UTF-8')) ?>" <?= $sel === $id ? 'open' : '' ?>>
+                <summary><span class="rel-tit"><?= e($r['titulo']) ?></span><span class="rel-desc"><?= e($r['desc']) ?></span></summary>
+                <div class="rel-linha-corpo"><?php rel_ui_form($id, $r, $par); ?></div>
+            </details>
         <?php endforeach; ?>
         </div>
     <?php endforeach; ?>
+    <p id="relVazio" style="display:none;color:var(--muted);font-size:14px;margin-top:20px;">Nenhum relatório encontrado.</p>
+    <script>
+    document.getElementById('relBusca').addEventListener('input', function () {
+        const q = this.value.trim().toLowerCase(); let achou = 0;
+        document.querySelectorAll('.rel-linha').forEach(d => { const ok = !q || d.dataset.busca.includes(q); d.style.display = ok ? '' : 'none'; if (ok) achou++; });
+        document.querySelectorAll('.rel-lista').forEach(l => { const v = [...l.children].some(c => c.style.display !== 'none'); l.style.display = v ? '' : 'none'; l.previousElementSibling.style.display = v ? '' : 'none'; });
+        document.getElementById('relVazio').style.display = achou ? 'none' : '';
+    });
+    </script>
 </main>
 </body>
 </html>

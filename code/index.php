@@ -1,7 +1,7 @@
 <?php
 require_once 'config.php';
 
-$produtos = $pdo->query("SELECT * FROM produtos ORDER BY id DESC LIMIT 8")->fetchAll(PDO::FETCH_ASSOC);
+$produtos = $pdo->query("SELECT * FROM produtos WHERE ativo = 1 ORDER BY id DESC LIMIT 8")->fetchAll(PDO::FETCH_ASSOC);
 $destaque = $produtos[0] ?? null;
 ?>
 <!DOCTYPE html>

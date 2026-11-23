@@ -9,17 +9,19 @@ $query->execute([$id]);
 
 $p = $query->fetch(PDO::FETCH_ASSOC);
 
-if (!$p) { 
+// Produto inexistente ou arquivado (ativo = 0): só administradores ainda conseguem abrir a página
+$e_admin = in_array($_SESSION['usuario_nivel'] ?? '', ['admin', 'superadmin', 'gerente'], true);
+if (!$p || (empty($p['ativo']) && !$e_admin)) { 
     header("Location: index.php"); 
     exit; 
 }
 
 // BUSCA PRODUTOS PARECIDOS (Mesma categoria)
-$queryRelacionados = $pdo->prepare("SELECT * FROM produtos WHERE categoria = ? AND id != ? LIMIT 4");
+$queryRelacionados = $pdo->prepare("SELECT * FROM produtos WHERE ativo = 1 AND categoria = ? AND id != ? LIMIT 4");
 $queryRelacionados->execute([$p['categoria'] ?? '', $id]);
 $relacionados = $queryRelacionados->fetchAll(PDO::FETCH_ASSOC);
 if (!$relacionados) {   // sem outros da mesma categoria: mostra os mais recentes
-    $queryRelacionados = $pdo->prepare("SELECT * FROM produtos WHERE id != ? ORDER BY id DESC LIMIT 4");
+    $queryRelacionados = $pdo->prepare("SELECT * FROM produtos WHERE ativo = 1 AND id != ? ORDER BY id DESC LIMIT 4");
     $queryRelacionados->execute([$id]);
     $relacionados = $queryRelacionados->fetchAll(PDO::FETCH_ASSOC);
 }

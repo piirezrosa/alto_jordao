@@ -22,7 +22,8 @@ $cp_admin = in_array($_SESSION['usuario_nivel'] ?? '', ['admin', 'superadmin'], 
         <?php if ($cp_admin): ?>
             <div class="aj-card-admin">
                 <a href="editar_produto.php?id=<?= (int)$p['id'] ?>">Editar</a>
-                <a class="del" href="excluir_produto.php?id=<?= (int)$p['id'] ?>" onclick="return confirm('Deseja excluir este produto?')">Excluir</a>
+                <?php if (empty($_SESSION['csrf_produto'])) $_SESSION['csrf_produto'] = bin2hex(random_bytes(16)); ?>
+                <a class="del" href="excluir_produto.php?id=<?= (int)$p['id'] ?>&t=<?= $_SESSION['csrf_produto'] ?>" onclick="return confirm('Excluir este produto?\n\nSe ele já foi vendido, será apenas arquivado (sai da loja, mas o histórico de pedidos é mantido).')">Excluir</a>
             </div>
         <?php endif; ?>
     </div>

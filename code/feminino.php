@@ -1,6 +1,6 @@
 <?php
 require_once 'config.php';
-$query = $pdo->prepare("SELECT * FROM produtos WHERE genero IN ('feminino', 'unissex') ORDER BY id DESC");
+$query = $pdo->prepare("SELECT * FROM produtos WHERE ativo = 1 AND genero IN ('feminino', 'unissex') ORDER BY id DESC");
 $query->execute();
 $produtos = $query->fetchAll(PDO::FETCH_ASSOC);
 

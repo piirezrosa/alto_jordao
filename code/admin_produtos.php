@@ -12,7 +12,7 @@ try {
     $estoqueTotal    = $pdo->query("SELECT SUM(estoque) FROM produtos WHERE ativo=1")->fetchColumn() ?: 0;
     $faturamento     = $pdo->query("SELECT SUM(total) FROM pedidos WHERE status='pago'")->fetchColumn() ?: 0;
     $vendasHoje      = $pdo->query("SELECT COUNT(*) FROM pedidos WHERE DATE(data_pedido) = CURDATE()")->fetchColumn() ?: 0;
-    $produtosRecentes= $pdo->query("SELECT * FROM produtos ORDER BY id DESC LIMIT 8")->fetchAll(PDO::FETCH_ASSOC);
+    $produtosRecentes= $pdo->query("SELECT * FROM produtos WHERE ativo=1 ORDER BY id DESC LIMIT 8")->fetchAll(PDO::FETCH_ASSOC);
     $estoqueCritico  = $pdo->query("SELECT COUNT(*) FROM produtos WHERE estoque<=3 AND ativo=1")->fetchColumn();
 } catch (PDOException $e) {
     $faturamento = $vendasHoje = $totalProdutos = $estoqueTotal = $estoqueCritico = 0;
@@ -81,6 +81,17 @@ $pagina_atual = 'produtos';
             <a href="cadastrar_produto.php" class="btn-admin-primary">+ Novo Produto</a>
         </div>
     </div>
+    <?php
+    $msgs = [
+        'excluido'       => ['ok',  'Produto excluído definitivamente.'],
+        'arquivado'      => ['ok',  'Produto arquivado: ele já tem vendas, então saiu da loja mas o histórico de pedidos foi mantido.'],
+        'sessao'         => ['err', 'Link de exclusão inválido ou expirado. Recarregue a página e tente de novo.'],
+        'inexistente'    => ['err', 'Produto não encontrado.'],
+        'erro_exclusao'  => ['err', 'Não foi possível excluir o produto. Veja o log do servidor.'],
+    ];
+    if (isset($_GET['msg'], $msgs[$_GET['msg']])): [$t, $txt] = $msgs[$_GET['msg']]; ?>
+        <div style="margin:0 0 16px;padding:12px 16px;border-radius:10px;font-weight:600;font-size:14px;<?= $t === 'ok' ? 'background:#e8f7ee;color:#166534;border:1px solid #b7e4c7' : 'background:#fdecec;color:#991b1b;border:1px solid #f5c2c2' ?>"><?= htmlspecialchars($txt) ?></div>
+    <?php endif; ?>
 
     <div class="kpi-grid">
         <div class="kpi-card featured">

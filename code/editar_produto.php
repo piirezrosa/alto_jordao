@@ -14,7 +14,7 @@ if (session_status() === PHP_SESSION_NONE) {
     exit();
  }
 
-$id = $_GET['id'] ?? null;
+$id = (int)($_GET['id'] ?? 0) ?: null;
 if (!$id) { header("Location: _dashboard.php"); exit; }
 
 // Busca o produto atual

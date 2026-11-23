@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'entrada_helpers.php';
 require_once 'csrf_helpers.php';
 csrf_exigir();   // todo POST precisa do token
 require_once 'relatorios_ui.php';
@@ -25,7 +26,7 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
 }
 
 // ── FILTRO DE STATUS ──────────────────────────
-$filtro = $_GET['filtro'] ?? 'todos';
+$filtro = ent_token($_GET['filtro'] ?? 'todos', 'todos');
 
 $sql = "SELECT d.*, u.nome as cliente FROM devolucoes d 
         JOIN usuarios u ON d.usuario_id = u.id";

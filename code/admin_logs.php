@@ -2,6 +2,7 @@
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
 
+require_once 'entrada_helpers.php';
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin'])) {
     header("Location: login.php"); exit();
 }
@@ -9,8 +10,8 @@ if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], 
 // ── FILTROS ───────────────────────────────────
 $busca    = $_GET['busca']    ?? '';
 $acao     = $_GET['acao']     ?? '';
-$data_ini = $_GET['data_ini'] ?? date('Y-m-d', strtotime('-7 days'));
-$data_fim = $_GET['data_fim'] ?? date('Y-m-d');
+$data_ini = ent_data($_GET['data_ini'] ?? null, date('Y-m-d', strtotime('-7 days')));
+$data_fim = ent_data($_GET['data_fim'] ?? null, date('Y-m-d'));
 $pag      = max(1, (int)($_GET['pag'] ?? 1));
 $por_pag  = 25;
 $offset   = ($pag - 1) * $por_pag;

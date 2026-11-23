@@ -16,15 +16,28 @@ $erro = "";
 $voltar = ((($_GET['msg'] ?? '') === 'faca_login_para_finalizar') || (($_POST['voltar'] ?? '') === 'checkout.php')) ? 'checkout.php' : '';
 
 require_once 'csrf_helpers.php';
+require_once 'ratelimit_helpers.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_exigir();
-    $email = $_POST['email'];
-    $senha = $_POST['senha'];
+    $email = trim((string)($_POST['email'] ?? ''));
+    $senha = (string)($_POST['senha'] ?? '');
+
+    // Muitas tentativas erradas: bloqueia antes de sequer olhar a senha
+    $espera = rl_bloqueio_min($pdo, 'login', $email);
+    if ($espera > 0) {
+        $erro = "Muitas tentativas. Aguarde cerca de {$espera} min e tente de novo.";
+        $email = ''; $senha = '';
+    }
 
     // Busca o usuário pelo e-mail
-    $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE email = ?");
-    $stmt->execute([$email]);
-    $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
+    $usuario = false;
+    if ($erro === '' && $email !== '') {
+        $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE email = ?");
+        $stmt->execute([$email]);
+        $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
+        // E-mail inexistente também gasta o mesmo tempo (não revela quais e-mails têm conta)
+        if (!$usuario) password_verify($senha, '$2y$10$usesomesillystringforsalt.0123456789abcdefghijklmno');
+    }
 
     // Senhas novas são bcrypt (cadastro.php). Contas antigas em texto puro ainda entram
     // e são convertidas para hash no primeiro login.
@@ -42,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     if ($ok) {
+        rl_sucesso($pdo, 'login', $email);
         session_regenerate_id(true);
 
         // SALVA OS DADOS NA SESSÃO
@@ -58,7 +72,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: " . (($_POST['voltar'] ?? '') === 'checkout.php' ? 'checkout.php' : 'index.php'));
         }
         exit();
-    } else {
+    } elseif ($erro === '') {
+        rl_falha($pdo, 'login', $email);
         $erro = "E-mail ou senha incorretos.";
     }
 }

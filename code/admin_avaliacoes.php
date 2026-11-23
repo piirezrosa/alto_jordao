@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'entrada_helpers.php';
 require_once 'csrf_helpers.php';
 csrf_exigir();   // todo POST precisa do token
 
@@ -22,13 +23,13 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
         $pdo->prepare("DELETE FROM avaliacoes WHERE id=?")->execute([$id]);
     }
 
-    header("Location: admin_avaliacoes.php?msg=$action&filtro=".($_GET['filtro']??'pendente')); exit();
+    header("Location: admin_avaliacoes.php?msg=" . urlencode(ent_token($action)) . "&filtro=" . urlencode(ent_token($_GET['filtro'] ?? 'pendente', 'pendente'))); exit();
 }
 
 // ── FILTROS ───────────────────────────────────
-$filtro  = $_GET['filtro']  ?? 'pendente';
+$filtro  = ent_token($_GET['filtro'] ?? 'pendente', 'pendente');
 $busca   = $_GET['busca']   ?? '';
-$nota    = $_GET['nota']    ?? '';
+$nota    = preg_match('/^[1-5]$/', (string)($_GET['nota'] ?? '')) ? (string)$_GET['nota'] : '';
 $pag     = max(1, (int)($_GET['pag'] ?? 1));
 $por_pag = 15;
 $offset  = ($pag - 1) * $por_pag;

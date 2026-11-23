@@ -1056,3 +1056,15 @@ COMMIT;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+
+-- Limite de tentativas de login/cadastro (a loja também cria esta tabela sozinha se faltar)
+CREATE TABLE IF NOT EXISTS `login_tentativas` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tipo` varchar(12) NOT NULL DEFAULT 'login',
+  `chave` char(64) NOT NULL,
+  `ip` varchar(45) NOT NULL,
+  `criado_em` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_chave` (`tipo`,`chave`,`criado_em`),
+  KEY `idx_ip` (`tipo`,`ip`,`criado_em`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

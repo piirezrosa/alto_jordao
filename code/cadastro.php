@@ -9,37 +9,41 @@ require_once 'config.php';
 $mensagem = "";
 
 require_once 'csrf_helpers.php';
+require_once 'ratelimit_helpers.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_exigir();
-    $nome = $_POST['nome'];
-    $email = $_POST['email'];
-    $senha = $_POST['senha'];
-    $nivel = 'cliente'; 
+    $nome  = trim((string)($_POST['nome']  ?? ''));
+    $email = strtolower(trim((string)($_POST['email'] ?? '')));
+    $senha = (string)($_POST['senha'] ?? '');
+    $nivel = 'cliente';   // nunca vem do formulário
 
-    // Verificar se o e-mail já existe
-    $check = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
-    $check->execute([$email]);
-
-    if ($check->rowCount() > 0) {
-        $mensagem = "Este e-mail já está cadastrado!";
+    if (mb_strlen($nome) < 2 || mb_strlen($nome) > 100) {
+        $mensagem = "Informe seu nome.";
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 150) {
+        $mensagem = "Informe um e-mail válido.";
+    } elseif (strlen($senha) < 8 || strlen($senha) > 72 || !preg_match('/[A-Za-z]/', $senha) || !preg_match('/\d/', $senha)) {
+        $mensagem = "A senha precisa ter de 8 a 72 caracteres, com letras e números.";
+    } elseif (rl_cadastros_ip($pdo) >= RL_MAX_CADASTRO) {
+        $mensagem = "Muitos cadastros deste dispositivo. Tente novamente mais tarde.";
     } else {
-        // Criptografar a senha antes de salvar
-        $senhaHash = password_hash($senha, PASSWORD_DEFAULT);
+        $check = $pdo->prepare("SELECT id FROM usuarios WHERE email = ?");
+        $check->execute([$email]);
 
-        // Inserir no banco
-        $sql = "INSERT INTO usuarios (nome, email, senha, nivel) VALUES (?, ?, ?, ?)";
-        $stmt = $pdo->prepare($sql);
-        
-        if ($stmt->execute([$nome, $email, $senhaHash, $nivel])) {
-            // SUCESSO! Logar o usuário automaticamente preenchendo a sessão
-            $_SESSION['usuario_id'] = $pdo->lastInsertId();
-            $_SESSION['usuario_nome'] = $nome;
-            $_SESSION['usuario_nivel'] = $nivel;
-            
-            // REDIRECIONAMENTO para a index
-            header("Location: index.php");
-            exit();
+        if ($check->fetchColumn()) {
+            // Mensagem neutra: não confirma se o e-mail já tem conta (evita descobrir clientes)
+            rl_falha($pdo, 'cadastro', $email);
+            $mensagem = "Não foi possível criar a conta com estes dados. Se você já é cliente, entre com seu e-mail e senha.";
         } else {
+            $stmt = $pdo->prepare("INSERT INTO usuarios (nome, email, senha, nivel) VALUES (?, ?, ?, ?)");
+            if ($stmt->execute([$nome, $email, password_hash($senha, PASSWORD_DEFAULT), $nivel])) {
+                rl_falha($pdo, 'cadastro', $email);   // conta como 1 cadastro deste IP
+                session_regenerate_id(true);          // sessão nova: evita fixação de sessão
+                $_SESSION['usuario_id']    = $pdo->lastInsertId();
+                $_SESSION['usuario_nome']  = $nome;
+                $_SESSION['usuario_nivel'] = $nivel;
+                header("Location: index.php");
+                exit();
+            }
             $mensagem = "Erro ao criar conta. Tente novamente.";
         }
     }

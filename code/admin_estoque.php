@@ -1,5 +1,6 @@
 <?php
 require_once 'config.php';
+require_once 'entrada_helpers.php';
 require_once 'csrf_helpers.php';
 csrf_exigir();   // todo POST precisa do token
 require_once 'relatorios_ui.php';
@@ -27,7 +28,7 @@ if (isset($_POST['atualizar_estoque'])) {
 }
 
 // ── FILTROS ───────────────────────────────────
-$filtro  = $_GET['filtro']  ?? 'todos';
+$filtro  = ent_token($_GET['filtro'] ?? 'todos', 'todos');
 $busca   = $_GET['busca']   ?? '';
 
 $sql = "SELECT id, nome, estoque, imagem, categoria FROM produtos WHERE ativo = 1";

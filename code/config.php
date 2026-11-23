@@ -1,7 +1,27 @@
 <?php
 date_default_timezone_set('America/Sao_Paulo'); // horários de expiração PIX/boleto e logs
 if (session_status() === PHP_SESSION_NONE) {
+    // Cookie de sessão: só HTTP (sem JavaScript), mesmo site e, quando o acesso é HTTPS, só por HTTPS
+    $aj_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+             || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    ini_set('session.cookie_httponly', '1');
+    ini_set('session.cookie_samesite', 'Lax');
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
+    if ($aj_https) ini_set('session.cookie_secure', '1');
     session_start();
+}
+
+// Sessão com login expira após 2 h sem uso (chamadas automáticas de fundo definem AJ_SEM_ATIVIDADE e não renovam)
+if (isset($_SESSION['usuario_id'])) {
+    if (isset($_SESSION['ultimo_acesso']) && time() - (int)$_SESSION['ultimo_acesso'] > 7200) {
+        $_SESSION = [];
+        session_destroy();
+        session_start();
+        session_regenerate_id(true);
+    } elseif (!defined('AJ_SEM_ATIVIDADE')) {
+        $_SESSION['ultimo_acesso'] = time();
+    }
 }
 
 require_once __DIR__ . '/env.php';
@@ -25,7 +45,10 @@ try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     $conn = $pdo; // Cria um apelido para manter compatibilidade
 } catch (\PDOException $e) {
-    die("Erro na conexão: " . $e->getMessage());
+    // Detalhe só no log do servidor: a mensagem do PDO mostra host e usuário do banco
+    error_log('[DB CONEXAO] ' . $e->getMessage());
+    http_response_code(503);
+    die("Loja temporariamente indisponível. Tente novamente em instantes.");
 }
 
 /**

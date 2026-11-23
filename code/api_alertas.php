@@ -1,5 +1,6 @@
 <?php
 // Endpoint AJAX — chamado a cada 60s pelo painel admin
+define('AJ_SEM_ATIVIDADE', true);   // polling de fundo não renova a sessão
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
 require_once 'alertas_helpers.php';

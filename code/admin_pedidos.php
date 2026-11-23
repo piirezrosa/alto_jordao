@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'entrada_helpers.php';
 require_once 'csrf_helpers.php';
 csrf_exigir();   // todo POST precisa do token
 require_once 'financeiro_helpers.php';
@@ -59,10 +60,10 @@ if (isset($_POST['atualizar_status'])) {
 }
 
 // ── FILTROS ───────────────────────────────────
-$status_filtro = $_GET['status']   ?? '';
+$status_filtro = ent_token($_GET['status'] ?? '');
 $busca         = $_GET['busca']    ?? '';
-$data_ini      = $_GET['data_ini'] ?? date('Y-m-d', strtotime('-30 days'));
-$data_fim      = $_GET['data_fim'] ?? date('Y-m-d');
+$data_ini      = ent_data($_GET['data_ini'] ?? null, date('Y-m-d', strtotime('-30 days')));
+$data_fim      = ent_data($_GET['data_fim'] ?? null, date('Y-m-d'));
 $pag           = max(1, (int)($_GET['pag'] ?? 1));
 $por_pag       = 15;
 $offset        = ($pag - 1) * $por_pag;

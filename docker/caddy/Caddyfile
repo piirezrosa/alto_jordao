@@ -1,5 +1,6 @@
 # HTTPS automático (Let's Encrypt). Requer DOMINIO no .env apontando para o IP do servidor e portas 80/443 abertas.
 {$DOMINIO} {
     encode gzip
+    header -Server
     reverse_proxy web:80
 }

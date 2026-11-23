@@ -1,4 +1,5 @@
 <?php
+define('AJ_SEM_ATIVIDADE', true);   // polling de fundo não renova a sessão
 /**
  * Verificar Pagamento — Alto Jordão
  * Usado pelo polling de pedido_confirmado.php (PIX).

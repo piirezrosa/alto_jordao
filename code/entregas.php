@@ -2,6 +2,7 @@
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php'; 
 
+require_once 'entrada_helpers.php';
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente','operador'])) {
     header("Location: login.php"); exit();
 }
@@ -21,7 +22,7 @@ if (isset($_GET['atualizar_id']) && isset($_GET['novo_status'])) {
 }
 
 // ── FILTRO DE STATUS ──────────────────────────
-$filtro = $_GET['filtro'] ?? 'todos';
+$filtro = ent_token($_GET['filtro'] ?? 'todos', 'todos');
 
 $sql_base = "SELECT p.*, u.nome as cliente 
              FROM pedidos p 

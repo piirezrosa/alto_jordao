@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'entrada_helpers.php';
 require_once 'csrf_helpers.php';
 csrf_exigir();   // todo POST precisa do token
 require_once 'alertas_helpers.php';
@@ -45,9 +46,9 @@ if (isset($_GET['rodar_analise']) && $_SESSION['usuario_nivel'] === 'superadmin'
 alertas_analise_se_necessario($pdo, 10);
 
 // FILTROS 
-$filtro_tipo  = $_GET['tipo']   ?? '';
-$filtro_nivel = $_GET['nivel']  ?? '';
-$filtro_lido  = $_GET['lido']   ?? 'nao';
+$filtro_tipo  = ent_token($_GET['tipo']  ?? '');
+$filtro_nivel = ent_token($_GET['nivel'] ?? '');
+$filtro_lido  = ent_token($_GET['lido']  ?? 'nao', 'nao');
 $pag          = max(1, (int)($_GET['pag'] ?? 1));
 $por_pag      = 20;
 $offset       = ($pag - 1) * $por_pag;

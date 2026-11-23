@@ -4,6 +4,8 @@
 services:
   web:
     ports: !reset []        # o site só é alcançável pelo Caddy
+    environment:
+      SESSION_COOKIE_SECURE: "1"   # cookie de sessão só trafega por HTTPS
     expose:
       - "80"
 

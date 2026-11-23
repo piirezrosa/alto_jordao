@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'entrada_helpers.php';
 require_once 'alertas_helpers.php';
 require_once 'financeiro_helpers.php';
 require_once 'relatorios_ui.php';
@@ -10,10 +11,10 @@ if (!isset($_SESSION['usuario_nivel']) ||
     header("Location: login.php"); exit;
 }
 
-$aba       = $_GET['aba']    ?? 'vendas';
-$periodo   = $_GET['periodo']?? '30';
-$data_ini  = $_GET['data_ini']?? date('Y-m-01');
-$data_fim  = $_GET['data_fim']?? date('Y-m-d');
+$aba       = ent_token($_GET['aba'] ?? 'vendas', 'vendas');
+$periodo   = ent_token($_GET['periodo'] ?? '30', '30');
+$data_ini  = ent_data($_GET['data_ini'] ?? null, date('Y-m-01'));
+$data_fim  = ent_data($_GET['data_fim'] ?? null, date('Y-m-d'));
 
 if ($periodo !== 'custom') {
     $data_ini = date('Y-m-d', strtotime("-$periodo days"));

@@ -1,6 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'entrada_helpers.php';
 require_once 'csrf_helpers.php';
 csrf_exigir();   // todo POST precisa do token
 require_once 'relatorios_ui.php';
@@ -48,7 +49,7 @@ if (isset($_GET['excluir'])) {
 }
 
 // ── DADOS ─────────────────────────────────────
-$filtro = $_GET['filtro'] ?? 'todos';
+$filtro = ent_token($_GET['filtro'] ?? 'todos', 'todos');
 $sql = "SELECT * FROM cupons";
 if ($filtro === 'ativos')   $sql .= " WHERE ativo=1";
 if ($filtro === 'inativos') $sql .= " WHERE ativo=0";

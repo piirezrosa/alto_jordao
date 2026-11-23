@@ -82,9 +82,13 @@ $desde  = max(0, (int)($_GET['desde'] ?? 0));
 $max_id = (int)$pdo->query("SELECT COALESCE(MAX(id),0) FROM alertas WHERE lido=0 AND $minha")->fetchColumn();
 $novos = 0; $novos_lista = [];
 if ($popup) {
-    $novos = (int)$pdo->query("SELECT COUNT(*) FROM alertas WHERE lido=0 AND id > $desde AND $minha")->fetchColumn();
+    $q_novos = $pdo->prepare("SELECT COUNT(*) FROM alertas WHERE lido=0 AND id > ? AND $minha");   // $minha só contém inteiros (alertas_visiveis_sql)
+    $q_novos->execute([$desde]);
+    $novos = (int)$q_novos->fetchColumn();
     if ($novos === 1) {
-        $n = $pdo->query("SELECT id, tipo, titulo, descricao, nivel FROM alertas WHERE lido=0 AND id > $desde AND $minha LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        $q_um = $pdo->prepare("SELECT id, tipo, titulo, descricao, nivel FROM alertas WHERE lido=0 AND id > ? AND $minha LIMIT 1");
+        $q_um->execute([$desde]);
+        $n = $q_um->fetch(PDO::FETCH_ASSOC);
         if ($n) {
             $n['icone'] = $meta[$n['tipo']]['icone'] ?? '🔔';
             $n['descricao'] = mb_strimwidth((string)$n['descricao'], 0, 140, '…', 'UTF-8');

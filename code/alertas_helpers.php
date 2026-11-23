@@ -15,7 +15,7 @@
 function alertas_garantir_schema(PDO $pdo): void
 {
     static $feito = false;
-    if ($feito) return;
+    if ($feito || !schema_auto()) return;
     $feito = true;
     try {
         $cols = $pdo->query("SHOW COLUMNS FROM alertas")->fetchAll(PDO::FETCH_COLUMN);
@@ -350,7 +350,7 @@ function alertas_executar_analise(PDO $pdo): array
 
     // Quantos alertas novos ficaram com CADA admin (alertas são por perfil: quem roda a análise só vê os seus)
     $por_usuario = [];
-    foreach ($pdo->query("SELECT usuario_id, COUNT(*) AS n FROM alertas WHERE id > $max_antes GROUP BY usuario_id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    foreach ($pdo->query("SELECT usuario_id, COUNT(*) AS n FROM alertas WHERE id > " . (int)$max_antes . " GROUP BY usuario_id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $por_usuario[(int)$r['usuario_id']] = (int)$r['n'];
     }
 

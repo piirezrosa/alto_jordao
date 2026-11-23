@@ -77,8 +77,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── DADOS ────────────────────────────────────────────────
 $filtro = $_GET['filtro'] ?? 'ativas';
-$where  = $filtro === 'inativas' ? 'WHERE ativo = 0' : ($filtro === 'todas' ? '' : 'WHERE ativo = 1');
-$despesas = $pdo->query("SELECT * FROM despesas $where ORDER BY ativo DESC, valor DESC")->fetchAll(PDO::FETCH_ASSOC);
+// Três consultas fixas (nada vindo da URL entra no SQL)
+if ($filtro === 'inativas')    $despesas = $pdo->query("SELECT * FROM despesas WHERE ativo = 0 ORDER BY ativo DESC, valor DESC")->fetchAll(PDO::FETCH_ASSOC);
+elseif ($filtro === 'todas')   $despesas = $pdo->query("SELECT * FROM despesas ORDER BY ativo DESC, valor DESC")->fetchAll(PDO::FETCH_ASSOC);
+else                           $despesas = $pdo->query("SELECT * FROM despesas WHERE ativo = 1 ORDER BY ativo DESC, valor DESC")->fetchAll(PDO::FETCH_ASSOC);
 
 $edit = null;
 if (isset($_GET['editar'])) {

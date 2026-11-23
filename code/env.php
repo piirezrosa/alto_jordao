@@ -42,3 +42,13 @@ if (!function_exists('env')) {
         return in_array(strtolower(trim((string)$v)), ['1', 'true', 'sim', 'on', 'yes'], true);
     }
 }
+
+/**
+ * Criação/ajuste automático de tabelas e colunas durante as requisições.
+ * Prático em desenvolvimento (XAMPP). Em produção, com o banco criado pelo docker/db/01-schema.sql,
+ * defina SCHEMA_AUTO=0 no .env: o usuário do banco não precisa mais de permissão CREATE/ALTER.
+ */
+if (!function_exists('schema_auto')) {
+    function schema_auto(): bool { return (string)env('SCHEMA_AUTO', '1') !== '0'; }
+}
+

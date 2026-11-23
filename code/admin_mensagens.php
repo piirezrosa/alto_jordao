@@ -27,8 +27,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header("Location: admin_mensagens.php?filtro=" . urlencode($filtro)); exit();
 }
 
-$where = $filtro === 'todas' ? '' : "WHERE status = " . $pdo->quote($filtro);
-$msgs = $pdo->query("SELECT * FROM mensagens_contato $where ORDER BY data_criacao DESC LIMIT 200")->fetchAll(PDO::FETCH_ASSOC);
+$st_msgs = $filtro === 'todas'
+    ? $pdo->query("SELECT * FROM mensagens_contato ORDER BY data_criacao DESC LIMIT 200")
+    : $pdo->prepare("SELECT * FROM mensagens_contato WHERE status = ? ORDER BY data_criacao DESC LIMIT 200");
+if ($filtro !== 'todas') $st_msgs->execute([$filtro]);
+$msgs = $st_msgs->fetchAll(PDO::FETCH_ASSOC);
 $csrf = contato_csrf_token();
 $n_novas = contato_novas($pdo);
 

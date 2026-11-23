@@ -14,7 +14,7 @@ const RL_MAX_CADASTRO = 8;    // contas criadas por IP em 1 hora
 function rl_schema(PDO $pdo): void
 {
     static $feito = false;
-    if ($feito) return;
+    if ($feito || !schema_auto()) return;
     $feito = true;
     try {
         $pdo->exec("CREATE TABLE IF NOT EXISTS login_tentativas (
@@ -75,13 +75,16 @@ function rl_sucesso(PDO $pdo, string $tipo, string $email): void
     try { $pdo->prepare("DELETE FROM login_tentativas WHERE tipo = ? AND chave = ?")->execute([$tipo, rl_chave($email)]); } catch (Throwable $e) {}
 }
 
-/** Cadastro: quantas contas este IP criou na última hora. */
-function rl_cadastros_ip(PDO $pdo): int
+/** Quantos eventos deste tipo este IP gerou nos últimos $minutos (cadastro, avaliação...). */
+function rl_contagem_ip(PDO $pdo, string $tipo, int $minutos = 60): int
 {
     rl_schema($pdo);
     try {
-        $q = $pdo->prepare("SELECT COUNT(*) FROM login_tentativas WHERE tipo = 'cadastro' AND ip = ? AND criado_em > (NOW() - INTERVAL 1 HOUR)");
-        $q->execute([rl_ip()]);
+        $q = $pdo->prepare("SELECT COUNT(*) FROM login_tentativas WHERE tipo = ? AND ip = ? AND criado_em > (NOW() - INTERVAL " . max(1, $minutos) . " MINUTE)");
+        $q->execute([$tipo, rl_ip()]);
         return (int)$q->fetchColumn();
     } catch (Throwable $e) { return 0; }
 }
+
+/** Cadastro: quantas contas este IP criou na última hora. */
+function rl_cadastros_ip(PDO $pdo): int { return rl_contagem_ip($pdo, 'cadastro', 60); }

@@ -11,6 +11,20 @@ define('MP_API_URL', 'https://api.mercadopago.com');
 // URL do meu site - usada para redirect e webhook
 define('SITE_URL', rtrim((string)env('SITE_URL', 'http://localhost/alto_jordao/code'), '/'));
 
+// Segredo de assinatura dos webhooks do Mercado Pago (Painel MP > Suas integrações > Webhooks > "Chave secreta")
+if (!defined('MP_WEBHOOK_SECRET')) define('MP_WEBHOOK_SECRET', (string)env('MP_WEBHOOK_SECRET', ''));
+
+/**
+ * Webhooks sem assinatura válida são recusados? Padrão: SIM quando SITE_URL é https (produção),
+ * NÃO em teste local (http). Force com WEBHOOK_EXIGIR_ASSINATURA=1 ou =0 no .env.
+ */
+function webhooks_exigir_assinatura(): bool
+{
+    $v = (string)env('WEBHOOK_EXIGIR_ASSINATURA', '');
+    if ($v !== '') return $v === '1';
+    return stripos(SITE_URL, 'https://') === 0;
+}
+
 class MercadoPago {
     /**
      * Faz uma requisição autenticada à API do mercado pago

@@ -120,7 +120,7 @@ function fin_colunas(PDO $pdo, string $tabela, bool $atualizar = false): array
 function fin_garantir_schema(PDO $pdo): void
 {
     static $feito = false;
-    if ($feito) return;
+    if ($feito || !schema_auto()) return;
     $feito = true;
     loja_garantir_schema($pdo);
     try {

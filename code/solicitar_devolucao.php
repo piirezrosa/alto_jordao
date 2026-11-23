@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'config.php';
+require_once 'upload_helpers.php';
 require_once 'csrf_helpers.php';
 csrf_exigir();   // todo POST precisa do token
 
@@ -19,18 +20,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $detalhes = trim((string)($_POST['detalhes'] ?? ''));
     $foto_nome = null;
 
-    if (!empty($_FILES['foto']['name'])) {
-        // Só imagens: a extensão vem do arquivo enviado, então é validada
-        $ext = strtolower(pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION));
-        $info = @getimagesize($_FILES['foto']['tmp_name']);
-        if (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true) || $info === false) {
-            $erro = 'Envie uma foto nos formatos JPG, PNG, WEBP ou GIF.';
-        } else {
-            $foto_nome = "dev_" . md5(time() . rand()) . "." . $ext;
-            if (!is_dir("img/devolucoes/")) { mkdir("img/devolucoes/", 0755, true); }
-            move_uploaded_file($_FILES['foto']['tmp_name'], "img/devolucoes/" . $foto_nome);
-        }
-    }
+    [$foto_nome, $erro_foto] = upload_imagem($_FILES['foto'] ?? null, __DIR__ . '/img/devolucoes');
+    if ($erro_foto !== '') $erro = $erro_foto;
 
     if ($motivo === '') { $erro = 'Escolha o motivo.'; }
 

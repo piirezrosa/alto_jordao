@@ -10,7 +10,7 @@ Permissoes::init($pdo);
 Permissoes::exigir('ver_admins');
 
 // ── CRIAR ADMIN ───────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['acao'] === 'criar') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'criar') {
     Permissoes::exigir('criar_admin');
 
     $nome  = trim($_POST['nome']  ?? '');
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['acao'] === 'criar') {
 }
 
 // ── EDITAR NÍVEL ──────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['acao'] === 'editar_nivel') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'editar_nivel') {
     Permissoes::exigir('editar_admin');
     $id    = (int)$_POST['id'];
     $nivel = $_POST['nivel'] ?? 'operador';
@@ -87,7 +87,7 @@ if (isset($_GET['toggle']) && Permissoes::pode('editar_admin')) {
 }
 
 // ── SALVAR PERMISSÕES CUSTOMIZADAS ────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['acao'] === 'salvar_perms') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'salvar_perms') {
     Permissoes::exigir('conceder_permissoes');
     $alvo_id = (int)$_POST['usuario_id'];
 

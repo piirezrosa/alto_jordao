@@ -39,7 +39,12 @@ if ($tipo !== 'payment' || !is_scalar($id) || !preg_match('/^\d+$/', (string)$id
 $id = (string)$id;
 
 // ── ASSINATURA (opcional, ativada pela constante MP_WEBHOOK_SECRET) ──
-if (defined('MP_WEBHOOK_SECRET') && MP_WEBHOOK_SECRET !== '') {
+if (webhooks_exigir_assinatura() && MP_WEBHOOK_SECRET === '') {
+    // Produção sem segredo configurado: não processa nada (o cliente ainda é atualizado pela tela de pagamento)
+    pedido_log($pdo, null, 'webhook_mp_sem_segredo', "payment_id: $id | defina MP_WEBHOOK_SECRET no .env");
+    exit;
+}
+if (MP_WEBHOOK_SECRET !== '') {
     $sig = $_SERVER['HTTP_X_SIGNATURE'] ?? '';
     $req = $_SERVER['HTTP_X_REQUEST_ID'] ?? '';
     $ts = $v1 = '';

@@ -47,8 +47,8 @@ $total_aval  = 0;
 $media_notas = 0;
 
 try {
-    // Garante que a tabela existe antes de consultar
-    $pdo->exec("
+    // Garante que a tabela existe antes de consultar (SCHEMA_AUTO=0 desliga)
+    if (schema_auto()) $pdo->exec("
         CREATE TABLE IF NOT EXISTS avaliacoes (
             id          INT AUTO_INCREMENT PRIMARY KEY,
             produto_id  INT             NOT NULL,

@@ -110,7 +110,9 @@ if (isset($_GET['id'])) {
 // Contagens por status (para tabs)
 $contagens = [];
 foreach (['pendente','pago','em_separacao','enviado','entregue','cancelado'] as $s) {
-    $contagens[$s] = $pdo->query("SELECT COUNT(*) FROM pedidos WHERE status='$s'")->fetchColumn();
+    $q_cont = $pdo->prepare("SELECT COUNT(*) FROM pedidos WHERE status = ?");
+    $q_cont->execute([$s]);
+    $contagens[$s] = $q_cont->fetchColumn();
 }
 
 // Badges de devoluções e estoque para sidebar

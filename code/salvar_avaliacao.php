@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
  
 header('Content-Type: application/json');
 require_once 'csrf_helpers.php';
+require_once 'ratelimit_helpers.php';
  
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['status' => 'error', 'message' => 'Método inválido.']);
@@ -26,6 +27,15 @@ if ($produto_id <= 0) {
 }
 if ($nota < 1 || $nota > 5) {
     echo json_encode(['status' => 'error', 'message' => 'Nota deve ser entre 1 e 5.']);
+    exit;
+}
+if (mb_strlen($comentario) > 1000) {
+    echo json_encode(['status' => 'error', 'message' => 'Comentário muito longo (máximo 1000 caracteres).']);
+    exit;
+}
+$nome_autor = mb_substr($nome_autor, 0, 60);
+if (rl_contagem_ip($pdo, 'avaliacao', 60) >= 5) {
+    echo json_encode(['status' => 'error', 'message' => 'Você enviou avaliações demais em pouco tempo. Tente novamente mais tarde.']);
     exit;
 }
 if (strlen($comentario) < 5) {
@@ -65,9 +75,9 @@ try {
  
 $status_inicial = ($moderar === '0') ? 'aprovado' : 'pendente';
  
-// Garante que a tabela existe
+// Garante que a tabela existe (SCHEMA_AUTO=0 desliga)
 try {
-    $pdo->exec("
+    if (schema_auto()) $pdo->exec("
         CREATE TABLE IF NOT EXISTS avaliacoes (
             id          INT AUTO_INCREMENT PRIMARY KEY,
             produto_id  INT             NOT NULL,
@@ -103,6 +113,7 @@ try {
     ]);
  
     $nova_id = $pdo->lastInsertId();
+    rl_falha($pdo, 'avaliacao', (string)$produto_id);   // conta 1 envio deste IP (limite por hora)
  
     if (!$nova_id) {
         throw new Exception("INSERT não retornou ID — verifique as constraints da tabela.");

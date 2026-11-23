@@ -32,6 +32,12 @@ if (!empty($_SERVER['HTTP_X_AUTHENTICITY_TOKEN'])) {
     $assinatura_ok = hash_equals($esperado, strtolower($_SERVER['HTTP_X_AUTHENTICITY_TOKEN']));
 }
 
+// Em produção a assinatura é obrigatória; sem ela (ou inválida) a notificação é descartada
+if (webhooks_exigir_assinatura() && $assinatura_ok !== true) {
+    pedido_log($pdo, null, 'webhook_ps_assinatura_invalida', $assinatura_ok === null ? 'sem x-authenticity-token' : 'assinatura divergente');
+    exit;
+}
+
 $ordem_id = is_array($payload) ? ($payload['id'] ?? '') : '';
 if (!is_string($ordem_id) || !preg_match('/^ORDE_[A-Za-z0-9-]+$/', $ordem_id)) {
     pedido_log($pdo, null, 'webhook_ps_ignorado', 'payload sem id de ordem válido');

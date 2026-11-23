@@ -71,9 +71,9 @@ function cfg($pdo, $chave, $default = '') {
     } catch (Exception $e) { return $default; }
 }
 
-// Tenta criar a tabela de configurações se não existir
+// Tenta criar a tabela de configurações se não existir (SCHEMA_AUTO=0 desliga)
 try {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS configuracoes (
+    if (schema_auto()) $pdo->exec("CREATE TABLE IF NOT EXISTS configuracoes (
         id INT AUTO_INCREMENT PRIMARY KEY,
         chave VARCHAR(100) NOT NULL UNIQUE,
         valor TEXT DEFAULT NULL,

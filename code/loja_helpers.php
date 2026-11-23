@@ -41,7 +41,7 @@ function loja_cfg(PDO $pdo, string $chave, $default = '')
 function loja_garantir_schema(PDO $pdo): void
 {
     static $feito = false;
-    if ($feito) return;
+    if ($feito || !schema_auto()) return;
     $feito = true;
     try {
         $cols = $pdo->query("SHOW COLUMNS FROM pedidos")->fetchAll(PDO::FETCH_COLUMN);

@@ -101,7 +101,7 @@ function frete_linha_tabela(PDO $pdo, string $servico, int $zona): array
 function frete_garantir_schema(PDO $pdo): void
 {
     static $feito = false;
-    if ($feito) return;
+    if ($feito || !schema_auto()) return;
     $feito = true;
     try {
         $cols = $pdo->query("SHOW COLUMNS FROM produtos")->fetchAll(PDO::FETCH_COLUMN);

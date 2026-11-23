@@ -47,9 +47,9 @@ if (!is_dir($pasta)) {
     file_put_contents($pasta . '.htaccess', "Deny from all\n");
 }
 
-// Garante a tabela
+// Garante a tabela (SCHEMA_AUTO=0 desliga)
 try {
-    $pdo->exec("
+    if (schema_auto()) $pdo->exec("
         CREATE TABLE IF NOT EXISTS relatorios_seguros (
             id               INT AUTO_INCREMENT PRIMARY KEY,
             nome             VARCHAR(200)  NOT NULL,

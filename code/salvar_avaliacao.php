@@ -3,12 +3,18 @@ require_once 'config.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
  
 header('Content-Type: application/json');
+require_once 'csrf_helpers.php';
  
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['status' => 'error', 'message' => 'Método inválido.']);
     exit;
 }
  
+if (!csrf_ok($_POST['_csrf'] ?? null)) {
+    echo json_encode(['status' => 'error', 'message' => 'Sessão expirada. Recarregue a página e tente de novo.']);
+    exit;
+}
+
 $produto_id = (int)($_POST['produto_id'] ?? 0);
 $nota       = (int)($_POST['estrelas']   ?? 0);
 $comentario = trim($_POST['comentario']  ?? '');
@@ -104,7 +110,7 @@ try {
  
 } catch (Exception $e) {
     error_log("[AVALIACAO ERROR] produto_id=$produto_id | " . $e->getMessage());
-    echo json_encode(['status' => 'error', 'message' => 'Erro ao salvar avaliação: ' . $e->getMessage()]);
+    echo json_encode(['status' => 'error', 'message' => 'Não foi possível salvar a avaliação. Tente novamente.']);
     exit;
 }
  

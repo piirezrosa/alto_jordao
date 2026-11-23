@@ -8,7 +8,9 @@ require_once 'config.php';
 
 $mensagem = "";
 
+require_once 'csrf_helpers.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_exigir();
     $nome = $_POST['nome'];
     $email = $_POST['email'];
     $senha = $_POST['senha'];
@@ -63,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <?php if ($mensagem): ?><div class="aj-alert err" role="alert"><?= htmlspecialchars($mensagem) ?></div><?php endif; ?>
 
-        <form action="" method="POST" class="aj-form">
+        <form action="" method="POST" class="aj-form"><?= csrf_campo() ?>
             <div class="aj-field">
                 <label for="nome">Nome completo</label>
                 <input type="text" id="nome" name="nome" autocomplete="name" required value="<?= htmlspecialchars($_POST['nome'] ?? '') ?>">

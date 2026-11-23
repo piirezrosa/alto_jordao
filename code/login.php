@@ -15,7 +15,9 @@ if (isset($_SESSION['usuario_id'])) {
 $erro = "";
 $voltar = ((($_GET['msg'] ?? '') === 'faca_login_para_finalizar') || (($_POST['voltar'] ?? '') === 'checkout.php')) ? 'checkout.php' : '';
 
+require_once 'csrf_helpers.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_exigir();
     $email = $_POST['email'];
     $senha = $_POST['senha'];
 
@@ -82,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if ($erro): ?><div class="aj-alert err" role="alert"><?= htmlspecialchars($erro) ?></div><?php endif; ?>
         <?php if ($voltar === 'checkout.php' && !$erro): ?><div class="aj-alert info">Entre na sua conta para finalizar a compra. Sua sacola continua guardada.</div><?php endif; ?>
 
-        <form method="POST" class="aj-form">
+        <form method="POST" class="aj-form"><?= csrf_campo() ?>
             <input type="hidden" name="voltar" value="<?= htmlspecialchars($voltar) ?>">
             <div class="aj-field">
                 <label for="email">E-mail</label>

@@ -1,10 +1,16 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+require_once 'upload_helpers.php';
 
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
     header("Location: login.php"); exit();
 }
+
+// Qualquer POST (criar/editar) exige token; ações por link (toggle/excluir) também
+if ($_SERVER['REQUEST_METHOD'] === 'POST') csrf_exigir();
+if (isset($_GET['toggle']) || isset($_GET['excluir'])) csrf_exigir_get();
 
 // ── CRIAR ─────────────────────────────────────
 if (isset($_POST['acao']) && $_POST['acao'] === 'criar') {
@@ -12,13 +18,8 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'criar') {
     $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', iconv('UTF-8','ASCII//TRANSLIT',$nome)));
     $existe = $pdo->prepare("SELECT COUNT(*) FROM marcas WHERE slug=?"); $existe->execute([$slug]);
     if ($existe->fetchColumn()) $slug .= '-'.time();
-    $logo = null;
-    if (!empty($_FILES['logo']['name'])) {
-        $ext  = pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION);
-        $logo = md5(time().rand()).".".$ext;
-        if (!is_dir("img/marcas/")) mkdir("img/marcas/", 0777, true);
-        move_uploaded_file($_FILES['logo']['tmp_name'], "img/marcas/".$logo);
-    }
+    [$logo, $erro_img] = upload_imagem($_FILES['logo'] ?? null, __DIR__ . '/img/marcas');
+    if ($erro_img !== '') { header("Location: admin_marcas.php?msg=erro_imagem"); exit(); }
     $pdo->prepare("INSERT INTO marcas (nome, slug, logo, ativo) VALUES (?,?,?,1)")->execute([$nome, $slug, $logo]);
     $log = $pdo->prepare("INSERT INTO logs_sistema (usuario_id,acao,tabela,registro_id,detalhes,ip) VALUES (?,?,?,?,?,?)");
     $log->execute([$_SESSION['usuario_id']??null,'marca_criada','marcas',$pdo->lastInsertId(),$nome,$_SERVER['REMOTE_ADDR']]);
@@ -31,12 +32,9 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'editar') {
     $nome = trim($_POST['nome']);
     $ativo= isset($_POST['ativo']) ? 1 : 0;
     $logo_atual = $_POST['logo_atual'];
-    if (!empty($_FILES['logo']['name'])) {
-        $ext  = pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION);
-        $logo_atual = md5(time().rand()).".".$ext;
-        if (!is_dir("img/marcas/")) mkdir("img/marcas/", 0777, true);
-        move_uploaded_file($_FILES['logo']['tmp_name'], "img/marcas/".$logo_atual);
-    }
+    [$novo_logo, $erro_img] = upload_imagem($_FILES['logo'] ?? null, __DIR__ . '/img/marcas');
+    if ($erro_img !== '') { header("Location: admin_marcas.php?msg=erro_imagem"); exit(); }
+    if ($novo_logo !== null) $logo_atual = $novo_logo;
     $pdo->prepare("UPDATE marcas SET nome=?, logo=?, ativo=? WHERE id=?")->execute([$nome, $logo_atual, $ativo, $id]);
     header("Location: admin_marcas.php?msg=editada"); exit();
 }
@@ -163,8 +161,8 @@ $pagina_atual = 'marcas';
                 <span class="<?= $m['ativo']?'badge-ativo':'badge-inativo' ?>"><?= $m['ativo']?'Ativa':'Inativa' ?></span>
                 <div class="row-actions">
                     <a href="?editar=<?= $m['id'] ?>" class="btn-sm btn-sm-edit">Editar</a>
-                    <a href="?toggle=<?= $m['id'] ?>" class="btn-sm btn-sm-toggle"><?= $m['ativo']?'Desativar':'Ativar' ?></a>
-                    <?php if($m['total_produtos']==0): ?><a href="?excluir=<?= $m['id'] ?>" class="btn-sm btn-sm-del" onclick="return confirm('Excluir marca?')">Excluir</a><?php endif; ?>
+                    <a href="?toggle=<?= $m['id'] ?>&<?= csrf_param() ?>" class="btn-sm btn-sm-toggle"><?= $m['ativo']?'Desativar':'Ativar' ?></a>
+                    <?php if($m['total_produtos']==0): ?><a href="?excluir=<?= $m['id'] ?>&<?= csrf_param() ?>" class="btn-sm btn-sm-del" onclick="return confirm('Excluir marca?')">Excluir</a><?php endif; ?>
                 </div>
             </div>
             <?php endforeach; ?>
@@ -174,7 +172,7 @@ $pagina_atual = 'marcas';
         <div class="admin-card form-card">
             <?php if($editando): ?>
             <div class="editing-banner">✏️ <?= htmlspecialchars($editando['nome']) ?><a href="admin_marcas.php">Cancelar ×</a></div>
-            <form method="POST" enctype="multipart/form-data">
+            <form method="POST" enctype="multipart/form-data"><?= csrf_campo() ?>
                 <input type="hidden" name="acao" value="editar">
                 <input type="hidden" name="id"   value="<?= $editando['id'] ?>">
                 <input type="hidden" name="logo_atual" value="<?= $editando['logo'] ?>">
@@ -186,7 +184,7 @@ $pagina_atual = 'marcas';
             </form>
             <?php else: ?>
             <div class="card-header" style="margin-bottom:20px;"><span class="card-title">Nova Marca</span></div>
-            <form method="POST" enctype="multipart/form-data">
+            <form method="POST" enctype="multipart/form-data"><?= csrf_campo() ?>
                 <input type="hidden" name="acao" value="criar">
                 <div class="input-group"><label>Nome da Marca *</label><input type="text" name="nome" placeholder="Ex: Alto Jordão, Collab..." required></div>
                 <div class="input-group"><label>Logo (opcional)</label><input type="file" name="logo" accept="image/*"></div>

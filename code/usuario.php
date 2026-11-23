@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once 'config.php';
+require_once 'csrf_helpers.php';
 
 if (!isset($_SESSION['usuario_id'])) {
     header("Location: login.php");
@@ -51,7 +52,7 @@ $user = $stmt->fetch();
         <div>
             <section class="aj-panel" id="perfil">
                 <h2>Dados pessoais</h2>
-                <form action="usuario_atualizar.php" method="POST" class="aj-form">
+                <form action="usuario_atualizar.php" method="POST" class="aj-form"><?= csrf_campo() ?>
                     <div class="aj-field">
                         <label for="u-nome">Nome completo</label>
                         <input type="text" id="u-nome" name="nome" value="<?= htmlspecialchars($user['nome'] ?? '') ?>" required>
@@ -76,7 +77,7 @@ $user = $stmt->fetch();
 
             <section class="aj-panel" id="enderecos">
                 <h2>Endereço de entrega</h2>
-                <form action="usuario_atualizar.php" method="POST" class="aj-form">
+                <form action="usuario_atualizar.php" method="POST" class="aj-form"><?= csrf_campo() ?>
                     <div class="aj-grid3">
                         <div class="aj-field">
                             <label for="u-cep">CEP</label>

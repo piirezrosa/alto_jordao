@@ -1,6 +1,8 @@
 <?php
 require_once 'config.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
+require_once 'csrf_helpers.php';
+require_once 'upload_helpers.php';
 
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
     header("Location: login.php"); exit();
@@ -10,6 +12,7 @@ require_once 'frete_helpers.php';
 $msg_sucesso = $msg_erro = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_exigir();
     $nome        = trim($_POST['nome']);
     $preco       = $_POST['preco'];
     $preco_antigo= !empty($_POST['preco_antigo']) ? $_POST['preco_antigo'] : null;
@@ -26,13 +29,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($erro_dim !== '') $msg_erro = $erro_dim;
 
     $imagem = "default.jpg";
-    if (!empty($_FILES['imagem']['name'])) {
-        $ext        = pathinfo($_FILES['imagem']['name'], PATHINFO_EXTENSION);
-        $nome_img   = md5(time().rand()).".".$ext;
-        if (!is_dir("img/produtos/")) mkdir("img/produtos/", 0777, true);
-        move_uploaded_file($_FILES['imagem']['tmp_name'], "img/produtos/".$nome_img);
-        $imagem = $nome_img;
-    }
+    [$nome_img, $erro_img] = upload_imagem($_FILES['imagem'] ?? null, __DIR__ . '/img/produtos');
+    if ($erro_img !== '') $msg_erro = $erro_img;
+    elseif ($nome_img !== null) $imagem = $nome_img;
 
     if ($msg_erro === '') try {
         $sql  = "INSERT INTO produtos (nome, preco, preco_antigo, custo, categoria, genero, tamanho, cor, estoque, descricao, destaque, imagem)
@@ -46,7 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: admin_produtos.php?msg=criado"); exit();
         }
     } catch (PDOException $e) {
-        $msg_erro = $e->getMessage();
+        error_log('[CADASTRAR PRODUTO] ' . $e->getMessage());
+        $msg_erro = 'Não foi possível salvar o produto. Confira os campos e tente de novo.';
     }
 }
 
@@ -215,7 +215,7 @@ $pagina_atual = 'novo_produto';
     <?php endif; ?>
 
     <div class="admin-card form-wrap">
-        <form method="POST" enctype="multipart/form-data">
+        <form method="POST" enctype="multipart/form-data"><?= csrf_campo() ?>
             <div class="form-grid">
 
                 <!-- IDENTIFICAÇÃO -->

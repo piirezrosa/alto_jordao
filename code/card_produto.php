@@ -19,11 +19,10 @@ $cp_admin = in_array($_SESSION['usuario_nivel'] ?? '', ['admin', 'superadmin'], 
             R$ <?= number_format((float)$p['preco'], 2, ',', '.') ?>
             <?php if ($cp_off > 0): ?><s>R$ <?= number_format((float)$p['preco_antigo'], 2, ',', '.') ?></s><?php endif; ?>
         </p>
-        <?php if ($cp_admin): ?>
+        <?php if ($cp_admin): require_once __DIR__ . '/csrf_helpers.php'; ?>
             <div class="aj-card-admin">
                 <a href="editar_produto.php?id=<?= (int)$p['id'] ?>">Editar</a>
-                <?php if (empty($_SESSION['csrf_produto'])) $_SESSION['csrf_produto'] = bin2hex(random_bytes(16)); ?>
-                <a class="del" href="excluir_produto.php?id=<?= (int)$p['id'] ?>&t=<?= $_SESSION['csrf_produto'] ?>" onclick="return confirm('Excluir este produto?\n\nSe ele já foi vendido, será apenas arquivado (sai da loja, mas o histórico de pedidos é mantido).')">Excluir</a>
+                <a class="del" href="excluir_produto.php?id=<?= (int)$p['id'] ?>&<?= csrf_param() ?>" onclick="return confirm('Excluir este produto?\n\nSe ele já foi vendido, será apenas arquivado (sai da loja, mas o histórico de pedidos é mantido).')">Excluir</a>
             </div>
         <?php endif; ?>
     </div>

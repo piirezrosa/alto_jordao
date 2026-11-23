@@ -1,6 +1,8 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+csrf_exigir();   // todo POST precisa do token
 
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
     header("Location: login.php"); exit();
@@ -8,6 +10,7 @@ if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], 
 
 // ── APROVAR / REPROVAR ────────────────────────
 if (isset($_GET['action']) && isset($_GET['id'])) {
+    csrf_exigir_get();
     $id     = (int)$_GET['id'];
     $action = $_GET['action'];
 
@@ -241,13 +244,13 @@ $pagina_atual = 'avaliacoes';
 
         <div class="aval-actions">
             <?php if($av['status'] !== 'aprovado'): ?>
-            <a href="?action=aprovar&id=<?= $av['id'] ?>&filtro=<?= $filtro ?>"
+            <a href="?action=aprovar&id=<?= $av['id'] ?>&filtro=<?= $filtro ?>&<?= csrf_param() ?>"
                class="btn-aprovar"
                onclick="return confirm('Aprovar esta avaliação?')">✓ Aprovar</a>
             <?php endif; ?>
 
             <?php if($av['status'] !== 'reprovado'): ?>
-            <a href="?action=reprovar&id=<?= $av['id'] ?>&filtro=<?= $filtro ?>"
+            <a href="?action=reprovar&id=<?= $av['id'] ?>&filtro=<?= $filtro ?>&<?= csrf_param() ?>"
                class="btn-reprovar"
                onclick="return confirm('Reprovar esta avaliação?')">✕ Reprovar</a>
             <?php endif; ?>
@@ -257,7 +260,7 @@ $pagina_atual = 'avaliacoes';
                Ver Produto →
             </a>
 
-            <a href="?action=excluir&id=<?= $av['id'] ?>&filtro=<?= $filtro ?>"
+            <a href="?action=excluir&id=<?= $av['id'] ?>&filtro=<?= $filtro ?>&<?= csrf_param() ?>"
                class="btn-excluir"
                onclick="return confirm('Excluir permanentemente esta avaliação?')">🗑 Excluir</a>
         </div>

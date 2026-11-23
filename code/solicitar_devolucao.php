@@ -1,6 +1,8 @@
 <?php
 session_start();
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+csrf_exigir();   // todo POST precisa do token
 
 if (!isset($_SESSION['usuario_id'])) { header("Location: login.php"); exit; }
 
@@ -60,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <?php if ($erro): ?><div class="aj-alert err" role="alert"><?= htmlspecialchars($erro) ?></div><?php endif; ?>
 
-        <form method="POST" enctype="multipart/form-data" class="aj-form">
+        <form method="POST" enctype="multipart/form-data" class="aj-form"><?= csrf_campo() ?>
             <div class="aj-field">
                 <label for="motivo">Qual o motivo?</label>
                 <select id="motivo" name="motivo" required>

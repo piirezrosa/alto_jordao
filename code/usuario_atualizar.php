@@ -1,6 +1,8 @@
 <?php
 session_start();
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+csrf_exigir();
 
 if (!isset($_SESSION['usuario_id'])) {
     header("Location: login.php");

@@ -1,5 +1,6 @@
 <?php 
 require_once 'config.php'; 
+require_once 'csrf_helpers.php';
 require_once 'loja_helpers.php';   // LOJA_DESCONTO_PIX
 
 // 1. Pegar ID e validar
@@ -327,6 +328,7 @@ function aj_estrelas($n) { $n = (int)round($n); return str_repeat('★', $n) . '
             btn.disabled = true; btn.textContent = 'Enviando...';
             const fd = new FormData();
             fd.append('produto_id', document.getElementById('produtoId').value);
+            fd.append('_csrf', <?= json_encode(csrf_token()) ?>);
             fd.append('nome', nome); fd.append('estrelas', nota); fd.append('comentario', texto);
             try {
                 const res  = await fetch('salvar_avaliacao.php', { method: 'POST', body: fd });

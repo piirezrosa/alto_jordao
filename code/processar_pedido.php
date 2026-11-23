@@ -21,6 +21,7 @@ require_once 'config.php';
 require_once 'loja_helpers.php';
 require_once 'financeiro_helpers.php';
 require_once 'pedido_helpers.php';
+require_once 'csrf_helpers.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -35,6 +36,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 if (!isset($_SESSION['usuario_id'])) {
     responder(['sucesso' => false, 'erro' => 'Sessão expirada. Faça login novamente.'], 401);
+}
+
+if (!csrf_ok($_SERVER['HTTP_X_CSRF_TOKEN'] ?? null)) {
+    responder(['sucesso' => false, 'erro' => 'Sessão expirada. Recarregue a página do checkout e tente de novo.'], 403);
 }
 
 $usuario_id = (int)$_SESSION['usuario_id'];

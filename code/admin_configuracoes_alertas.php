@@ -1,6 +1,8 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+csrf_exigir();   // todo POST precisa do token
 require_once 'alertas_helpers.php';
 
 if (!isset($_SESSION['usuario_nivel']) ||
@@ -154,7 +156,7 @@ $pagina_atual = 'config.alertas';
     <?php endif; ?>
 
     <div class="admin-card config-card">
-        <form method="POST">
+        <form method="POST"><?= csrf_campo() ?>
 
             <!-- Tipos de Alerta -->
             <div class="section-divider">Tipos de Alerta</div>

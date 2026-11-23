@@ -6,6 +6,7 @@
  *    relatórios e financeiro continuam corretos. Apagar quebraria esses registros.
  */
 require_once 'config.php';
+require_once 'csrf_helpers.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin', 'superadmin', 'gerente'], true)) {
@@ -13,10 +14,9 @@ if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], 
 }
 
 $id = (int)($_GET['id'] ?? 0);
-$token = (string)($_GET['t'] ?? '');
 $volta = 'admin_produtos.php';
 
-if ($id <= 0 || empty($_SESSION['csrf_produto']) || !hash_equals($_SESSION['csrf_produto'], $token)) {
+if ($id <= 0 || !csrf_ok($_GET['_csrf'] ?? null)) {
     header("Location: $volta?msg=sessao"); exit();   // link inválido ou expirado
 }
 

@@ -17,6 +17,8 @@
 
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+csrf_exigir();   // todo POST precisa do token
 require_once 'alertas_helpers.php';
 require_once 'financeiro_helpers.php';
 require_once 'CriptografiaAES.php';
@@ -458,7 +460,7 @@ $pagina_atual = 'relatorio.criptografado';
                 <span class="card-title">🔐 Novo Relatório</span>
             </div>
 
-            <form method="POST">
+            <form method="POST"><?= csrf_campo() ?>
                 <div class="input-group">
                     <label>Tipo de Relatório</label>
                     <select name="tipo" required>

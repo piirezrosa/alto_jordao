@@ -15,6 +15,8 @@
 
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+csrf_exigir();   // todo POST precisa do token
 require_once 'CriptografiaAES.php';
 
 if (!isset($_SESSION['usuario_nivel']) ||
@@ -404,7 +406,7 @@ $info_arquivo = empty($erro_fatal) ? CriptografiaAES::infoArquivo(file_get_conte
                 Este relatório está protegido com <strong>AES-256-CBC</strong>.<br>
                 Informe a senha definida no momento da geração para visualizá-lo.
             </p>
-            <form method="POST">
+            <form method="POST"><?= csrf_campo() ?>
                 <input type="password" name="senha" class="senha-input"
                        placeholder="••••••••" required autofocus>
                 <button type="submit" class="btn-abrir">🔓 Descriptografar e Abrir</button>

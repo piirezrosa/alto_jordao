@@ -1,6 +1,8 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+csrf_exigir();   // todo POST precisa do token
 require_once 'relatorios_ui.php';
 
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
@@ -30,6 +32,7 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'criar') {
 
 // ── TOGGLE ATIVO ──────────────────────────────
 if (isset($_GET['toggle'])) {
+    csrf_exigir_get();
     $id = (int)$_GET['toggle'];
     $cur = $pdo->prepare("SELECT ativo FROM cupons WHERE id=?"); $cur->execute([$id]);
     $novo = $cur->fetchColumn() ? 0 : 1;
@@ -39,6 +42,7 @@ if (isset($_GET['toggle'])) {
 
 // ── EXCLUIR ───────────────────────────────────
 if (isset($_GET['excluir'])) {
+    csrf_exigir_get();
     $pdo->prepare("DELETE FROM cupons WHERE id=?")->execute([(int)$_GET['excluir']]);
     header("Location: admin_cupons.php?msg=excluido"); exit();
 }
@@ -188,8 +192,8 @@ $pagina_atual = 'cupons';
                 <?php endif; ?>
 
                 <div class="cupom-actions" style="margin-top:14px;">
-                    <a href="?toggle=<?= $c['id'] ?>&filtro=<?= $filtro ?>" class="btn-sm btn-sm-toggle"><?= $c['ativo']?'Desativar':'Ativar' ?></a>
-                    <a href="?excluir=<?= $c['id'] ?>&filtro=<?= $filtro ?>" class="btn-sm btn-sm-del" onclick="return confirm('Excluir cupom <?= $c['codigo'] ?>?')">Excluir</a>
+                    <a href="?toggle=<?= $c['id'] ?>&filtro=<?= $filtro ?>&<?= csrf_param() ?>" class="btn-sm btn-sm-toggle"><?= $c['ativo']?'Desativar':'Ativar' ?></a>
+                    <a href="?excluir=<?= $c['id'] ?>&filtro=<?= $filtro ?>&<?= csrf_param() ?>" class="btn-sm btn-sm-del" onclick="return confirm('Excluir cupom <?= $c['codigo'] ?>?')">Excluir</a>
                 </div>
             </div>
             <?php endforeach; ?>
@@ -198,7 +202,7 @@ $pagina_atual = 'cupons';
         <!-- FORMULÁRIO -->
         <div class="admin-card form-card">
             <div class="card-header" style="margin-bottom:20px;"><span class="card-title">Novo Cupom</span></div>
-            <form method="POST">
+            <form method="POST"><?= csrf_campo() ?>
                 <input type="hidden" name="acao" value="criar">
                 <div class="input-group"><label class="lbl">Código *</label><input type="text" name="codigo" placeholder="Ex: VERAO20" style="text-transform:uppercase;" required></div>
                 <div class="input-group"><label class="lbl">Tipo de Desconto *</label>

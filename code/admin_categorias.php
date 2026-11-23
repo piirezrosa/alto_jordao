@@ -1,6 +1,8 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+csrf_exigir();   // todo POST precisa do token
 
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
     header("Location: login.php"); exit();
@@ -39,6 +41,7 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'editar') {
 
 // ── EXCLUIR ───────────────────────────────────
 if (isset($_GET['excluir'])) {
+    csrf_exigir_get();
     $id = (int)$_GET['excluir'];
     // Só exclui se não tiver produtos vinculados
     $tem_produtos = $pdo->prepare("SELECT COUNT(*) FROM produtos WHERE categoria_id = ?");
@@ -166,7 +169,7 @@ $pagina_atual = 'categorias';
                 <div class="row-actions">
                     <a href="?editar=<?= $cat['id'] ?>" class="btn-edit-sm">Editar</a>
                     <?php if($cat['total_produtos'] == 0): ?>
-                    <a href="?excluir=<?= $cat['id'] ?>" class="btn-del-sm" onclick="return confirm('Excluir categoria?')">Excluir</a>
+                    <a href="?excluir=<?= $cat['id'] ?>&<?= csrf_param() ?>" class="btn-del-sm" onclick="return confirm('Excluir categoria?')">Excluir</a>
                     <?php endif; ?>
                 </div>
             </div>
@@ -184,7 +187,7 @@ $pagina_atual = 'categorias';
                 ✏️ Editando: <?= htmlspecialchars($editando['nome']) ?>
                 <a href="admin_categorias.php">Cancelar ×</a>
             </div>
-            <form method="POST">
+            <form method="POST"><?= csrf_campo() ?>
                 <input type="hidden" name="acao" value="editar">
                 <input type="hidden" name="id"   value="<?= $editando['id'] ?>">
                 <div class="input-group">
@@ -214,7 +217,7 @@ $pagina_atual = 'categorias';
             <div class="card-header" style="margin-bottom:20px;">
                 <span class="card-title">Nova Categoria</span>
             </div>
-            <form method="POST">
+            <form method="POST"><?= csrf_campo() ?>
                 <input type="hidden" name="acao" value="criar">
                 <div class="input-group">
                     <label>Nome da Categoria *</label>

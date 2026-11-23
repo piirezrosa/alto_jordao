@@ -1,5 +1,7 @@
 <?php
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+csrf_exigir();   // todo POST precisa do token
 require_once 'relatorios_ui.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
@@ -9,6 +11,7 @@ if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], 
 
 // ── APROVAR / RECUSAR ─────────────────────────
 if (isset($_GET['action']) && isset($_GET['id'])) {
+    csrf_exigir_get();
     $id          = (int)$_GET['id'];
     $novo_status = ($_GET['action'] === 'aprovar') ? 'aprovado' : 'recusado';
 
@@ -379,12 +382,12 @@ $pagina_atual = 'devolucoes';
 
             <?php if($d['status'] === 'pendente'): ?>
             <div class="action-btns">
-                <a href="?action=aprovar&id=<?= $d['id'] ?>&filtro=<?= $filtro ?>"
+                <a href="?action=aprovar&id=<?= $d['id'] ?>&filtro=<?= $filtro ?>&<?= csrf_param() ?>"
                    class="btn-aprovar"
                    onclick="return confirm('Autorizar esta devolução/troca?')">
                     ✓ Autorizar Estorno/Troca
                 </a>
-                <a href="?action=recusar&id=<?= $d['id'] ?>&filtro=<?= $filtro ?>"
+                <a href="?action=recusar&id=<?= $d['id'] ?>&filtro=<?= $filtro ?>&<?= csrf_param() ?>"
                    class="btn-recusar"
                    onclick="return confirm('Recusar esta solicitação?')">
                     ✕ Recusar Solicitação

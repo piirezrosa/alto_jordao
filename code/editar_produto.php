@@ -1,6 +1,8 @@
 <?php
 require_once 'config.php';
 require_once 'frete_helpers.php';
+require_once 'csrf_helpers.php';
+require_once 'upload_helpers.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -24,6 +26,7 @@ $p = $query->fetch(PDO::FETCH_ASSOC);
 if (!$p) { die("Produto não encontrado."); }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_exigir();
     $nome = $_POST['nome'];
     $preco_novo = $_POST['preco_novo']; // Preço que será cobrado
     $preco_antigo = $_POST['preco_antigo']; // Preço sem desconto
@@ -34,12 +37,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cor = $_POST['cores'];
 
     $imagem = $p['imagem']; 
-    if (!empty($_FILES['nova_imagem']['name'])) {
-        $extensao = pathinfo($_FILES['nova_imagem']['name'], PATHINFO_EXTENSION);
-        $novo_nome = md5(time()) . "." . $extensao;
-        move_uploaded_file($_FILES['nova_imagem']['tmp_name'], "img/produtos/" . $novo_nome);
-        $imagem = $novo_nome;
+    [$novo_nome, $erro_img] = upload_imagem($_FILES['nova_imagem'] ?? null, __DIR__ . '/img/produtos');
+    if ($erro_img !== '') {
+        echo "<script>alert(" . json_encode('Produto NÃO salvo: ' . $erro_img) . "); history.back();</script>"; exit;
     }
+    if ($novo_nome !== null) $imagem = $novo_nome;
 
     // SQL ATUALIZADO: Mantendo a integridade dos preços
     $sql = "UPDATE produtos SET nome=?, preco=?, preco_antigo=?, categoria=?, genero=?, tamanho=?, cor=?, imagem=? WHERE id=?";
@@ -83,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </header>
 
-                <form method="POST" enctype="multipart/form-data" class="user-form">
+                <form method="POST" enctype="multipart/form-data" class="user-form"><?= csrf_campo() ?>
                     
                     <div class="profile-grid" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 25px;">
                         

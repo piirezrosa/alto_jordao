@@ -1,6 +1,8 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+csrf_exigir();   // todo POST precisa do token
 
 if (!isset($_SESSION['usuario_nivel']) || !in_array($_SESSION['usuario_nivel'], ['admin','superadmin','gerente'])) {
     header("Location: login.php"); exit();
@@ -33,6 +35,7 @@ if (isset($_POST['acao']) && $_POST['acao'] === 'editar') {
 
 // ── TOGGLE ATIVO ──────────────────────────────
 if (isset($_GET['toggle'])) {
+    csrf_exigir_get();
     $id = (int)$_GET['toggle'];
     $cur = $pdo->prepare("SELECT ativo FROM colecoes WHERE id=?"); $cur->execute([$id]);
     $novo = $cur->fetchColumn() ? 0 : 1;
@@ -42,6 +45,7 @@ if (isset($_GET['toggle'])) {
 
 // ── EXCLUIR ───────────────────────────────────
 if (isset($_GET['excluir'])) {
+    csrf_exigir_get();
     $id = (int)$_GET['excluir'];
     $tem = $pdo->prepare("SELECT COUNT(*) FROM produtos WHERE colecao_id=?"); $tem->execute([$id]);
     if ($tem->fetchColumn() == 0) { $pdo->prepare("DELETE FROM colecoes WHERE id=?")->execute([$id]); header("Location: admin_colecoes.php?msg=excluida"); }
@@ -204,9 +208,9 @@ $pagina_atual = 'colecoes';
                     <span class="<?= $col['ativo'] ? 'badge-ativo' : 'badge-inativo' ?>"><?= $col['ativo'] ? 'Ativa' : 'Inativa' ?></span>
                     <span class="badge-count"><?= $col['total_produtos'] ?> produtos</span>
                     <a href="?editar=<?= $col['id'] ?>" class="btn-sm btn-sm-edit">Editar</a>
-                    <a href="?toggle=<?= $col['id'] ?>" class="btn-sm btn-sm-toggle"><?= $col['ativo'] ? 'Desativar' : 'Ativar' ?></a>
+                    <a href="?toggle=<?= $col['id'] ?>&<?= csrf_param() ?>" class="btn-sm btn-sm-toggle"><?= $col['ativo'] ? 'Desativar' : 'Ativar' ?></a>
                     <?php if($col['total_produtos'] == 0): ?>
-                    <a href="?excluir=<?= $col['id'] ?>" class="btn-sm btn-sm-del" onclick="return confirm('Excluir coleção?')">Excluir</a>
+                    <a href="?excluir=<?= $col['id'] ?>&<?= csrf_param() ?>" class="btn-sm btn-sm-del" onclick="return confirm('Excluir coleção?')">Excluir</a>
                     <?php endif; ?>
                 </div>
             </div>
@@ -220,7 +224,7 @@ $pagina_atual = 'colecoes';
                 ✏️ <?= htmlspecialchars($editando['nome']) ?>
                 <a href="admin_colecoes.php">Cancelar ×</a>
             </div>
-            <form method="POST">
+            <form method="POST"><?= csrf_campo() ?>
                 <input type="hidden" name="acao" value="editar">
                 <input type="hidden" name="id"   value="<?= $editando['id'] ?>">
                 <div class="input-group">
@@ -253,7 +257,7 @@ $pagina_atual = 'colecoes';
             <div class="card-header" style="margin-bottom:20px;">
                 <span class="card-title">Nova Coleção</span>
             </div>
-            <form method="POST">
+            <form method="POST"><?= csrf_campo() ?>
                 <input type="hidden" name="acao" value="criar">
                 <div class="input-group">
                     <label>Nome da Coleção *</label>

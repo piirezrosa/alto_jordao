@@ -1,6 +1,8 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+csrf_exigir();   // todo POST precisa do token
 require_once 'financeiro_helpers.php';
 require_once 'pedido_helpers.php';
 require_once 'relatorios_ui.php';
@@ -585,7 +587,7 @@ $pagina_atual = 'pedidos';
         </div>
 
         <!-- FORMULÁRIO DE ATUALIZAÇÃO -->
-        <form method="POST" class="status-form">
+        <form method="POST" class="status-form"><?= csrf_campo() ?>
             <input type="hidden" name="pedido_id" value="<?= $pedido_det['id'] ?>">
 
             <div style="font-size:10px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:16px;">Atualizar Pedido</div>

@@ -2,6 +2,7 @@
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
 
+require_once 'csrf_helpers.php';
 if (!isset($_SESSION['usuario_id'])) {
     header("Location: login.php?msg=faca_login_para_finalizar");
     exit;
@@ -767,7 +768,7 @@ async function finalizarPedido() {
     try {
         const res  = await fetch('processar_pedido.php', {
             method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': <?= json_encode(csrf_token()) ?> },
             body:    JSON.stringify(payload),
         });
         const data = await res.json();

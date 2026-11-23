@@ -1,6 +1,8 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+csrf_exigir();   // todo POST precisa do token
 require_once 'alertas_helpers.php';
 require_once 'Permissoes.php';
 
@@ -73,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['acao'] === 'editar_nivel') 
 
 // ── ALTERNAR STATUS ───────────────────────────────────────
 if (isset($_GET['toggle']) && Permissoes::pode('editar_admin')) {
+    csrf_exigir_get();
     $id = (int)$_GET['toggle'];
     if ($id !== $_SESSION['usuario_id']) {
         $cur = $pdo->prepare("SELECT status FROM usuarios WHERE id = ?");
@@ -287,7 +290,7 @@ $pagina_atual = 'admin_admins';
 
                     <?php if(Permissoes::pode('editar_admin') && !$eh_eu): ?>
                     <!-- Select de nível inline -->
-                    <form method="POST" style="display:inline;">
+                    <form method="POST" style="display:inline;"><?= csrf_campo() ?>
                         <input type="hidden" name="acao" value="editar_nivel">
                         <input type="hidden" name="id"   value="<?= $a['id'] ?>">
                         <select name="nivel" onchange="this.form.submit()"
@@ -313,7 +316,7 @@ $pagina_atual = 'admin_admins';
                         <a href="?editando=<?= $a['id'] ?>" class="btn-sm btn-sm-perm">🔑 Permissões</a>
                         <?php endif; ?>
                         <?php if(Permissoes::pode('editar_admin') && !$eh_eu): ?>
-                        <a href="?toggle=<?= $a['id'] ?>" class="btn-sm btn-sm-block"
+                        <a href="?toggle=<?= $a['id'] ?>&<?= csrf_param() ?>" class="btn-sm btn-sm-block"
                            onclick="return confirm('Alterar status de <?= htmlspecialchars($a['nome']) ?>?')">
                             <?= $a['status']==='ativo' ? 'Bloquear' : 'Ativar' ?>
                         </a>
@@ -337,7 +340,7 @@ $pagina_atual = 'admin_admins';
                 <a href="admin_admins.php">✕</a>
             </div>
 
-            <form method="POST">
+            <form method="POST"><?= csrf_campo() ?>
                 <input type="hidden" name="acao"       value="salvar_perms">
                 <input type="hidden" name="usuario_id" value="<?= $editando['id'] ?>">
 
@@ -382,7 +385,7 @@ $pagina_atual = 'admin_admins';
             <div class="card-header" style="margin-bottom:18px;">
                 <span class="card-title">Novo Administrador</span>
             </div>
-            <form method="POST">
+            <form method="POST"><?= csrf_campo() ?>
                 <input type="hidden" name="acao" value="criar">
                 <div class="input-group">
                     <label>Nome Completo *</label>

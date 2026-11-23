@@ -1,5 +1,7 @@
 <?php
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+csrf_exigir();   // todo POST precisa do token
 require_once 'relatorios_ui.php';
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
@@ -182,7 +184,7 @@ $pagina_atual = 'estoque';
             <div class="prod-info">
                 <div class="prod-nome"><?= htmlspecialchars($p['nome']) ?></div>
                 <div class="prod-cat"><?= htmlspecialchars($p['categoria'] ?? '—') ?></div>
-                <form method="POST" class="quick-form">
+                <form method="POST" class="quick-form"><?= csrf_campo() ?>
                     <input type="hidden" name="id" value="<?= $p['id'] ?>">
                     <input type="number" name="quantidade" value="<?= $p['estoque'] ?>" class="stock-input" min="0">
                     <button type="submit" name="atualizar_estoque" class="btn-update">Salvar</button>

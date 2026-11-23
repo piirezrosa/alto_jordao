@@ -1,6 +1,8 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+csrf_exigir();   // todo POST precisa do token
 require_once 'alertas_helpers.php';
 
 if (!isset($_SESSION['usuario_nivel']) ||
@@ -13,11 +15,13 @@ $minha = alertas_visiveis_sql((int)$_SESSION['usuario_id']);   // cada admin só
 
 // MARCAR LIDO 
 if (isset($_GET['marcar_lido'])) {
+    csrf_exigir_get();
     $pdo->prepare("UPDATE alertas SET lido=1, lido_por=?, lido_em=NOW() WHERE id=? AND $minha")
         ->execute([$_SESSION['usuario_id'], (int)$_GET['marcar_lido']]);
     header("Location: admin_alertas.php"); exit;
 }
 if (isset($_GET['marcar_todos'])) {
+    csrf_exigir_get();
     $pdo->prepare("UPDATE alertas SET lido=1, lido_por=?, lido_em=NOW() WHERE lido=0 AND $minha")
         ->execute([$_SESSION['usuario_id']]);
     header("Location: admin_alertas.php?msg=todos_lidos"); exit;
@@ -25,6 +29,7 @@ if (isset($_GET['marcar_todos'])) {
 
 // DISPARAR ANÁLISE MANUAL 
 if (isset($_GET['rodar_analise']) && $_SESSION['usuario_nivel'] === 'superadmin') {
+    csrf_exigir_get();
     try {
         $r = alertas_executar_analise($pdo);
         $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('alertas_ultima_analise', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)")->execute([(string)time()]);
@@ -167,13 +172,13 @@ $pagina_atual = 'alertas';
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <?php if($_SESSION['usuario_nivel']==='superadmin'): ?>
-            <a href="?rodar_analise=1" class="btn-analise"
+            <a href="?rodar_analise=1&<?= csrf_param() ?>" class="btn-analise"
                onclick="return confirm('Rodar análise de produtos agora?')">
                 ⚡ Rodar Análise Agora
             </a>
             <?php endif; ?>
             <?php if($c_nao_lidos > 0): ?>
-            <a href="?marcar_todos=1" class="btn-marcar-todos"
+            <a href="?marcar_todos=1&<?= csrf_param() ?>" class="btn-marcar-todos"
                onclick="return confirm('Marcar todos os alertas como lidos?')">
                 ✓ Marcar Todos como Lidos
             </a>
@@ -310,7 +315,7 @@ $pagina_atual = 'alertas';
             <a href="<?= $link_ver ?>" class="btn-ver" target="_blank">Ver →</a>
             <?php endif; ?>
             <?php if(!$al['lido']): ?>
-            <a href="?marcar_lido=<?= $al['id'] ?>&lido=<?= $filtro_lido ?>&tipo=<?= $filtro_tipo ?>"
+            <a href="?marcar_lido=<?= $al['id'] ?>&lido=<?= $filtro_lido ?>&tipo=<?= $filtro_tipo ?>&<?= csrf_param() ?>"
                class="btn-lido">Marcar lido</a>
             <?php endif; ?>
         </div>

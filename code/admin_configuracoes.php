@@ -1,6 +1,8 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once 'config.php';
+require_once 'csrf_helpers.php';
+csrf_exigir();   // todo POST precisa do token
 require_once 'financeiro_helpers.php';
 require_once 'frete_helpers.php';
 require_once 'melhorenvio.php';
@@ -43,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['secao'])) {
 
     // Upsert genérico: salva cada campo como chave-valor
     $campos = $_POST;
-    unset($campos['secao']);
+    unset($campos['secao'], $campos['_csrf'], $campos['csrf']);   // tokens não são configuração
 
     $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
     foreach ($campos as $chave => $valor) {
@@ -235,7 +237,7 @@ $pagina_atual = 'configuracoes';
             <?php if($secao_ativa === 'geral'): ?>
             <div class="admin-card config-panel active">
                 <div class="card-header"><span class="card-title">⚙️ Configurações Gerais</span></div>
-                <form method="POST">
+                <form method="POST"><?= csrf_campo() ?>
                     <input type="hidden" name="secao" value="geral">
 
                     <div class="config-section-title">Identidade da Loja</div>
@@ -289,7 +291,7 @@ $pagina_atual = 'configuracoes';
             <?php if($secao_ativa === 'loja'): ?>
             <div class="admin-card config-panel active">
                 <div class="card-header"><span class="card-title">🛒 Configurações da Loja</span></div>
-                <form method="POST">
+                <form method="POST"><?= csrf_campo() ?>
                     <input type="hidden" name="secao" value="loja">
 
                     <div class="config-section-title">Comportamento</div>
@@ -389,7 +391,7 @@ $pagina_atual = 'configuracoes';
                     Configure o servidor SMTP para envio de e-mails automáticos. Recomendamos o uso de serviços como SendGrid, Mailgun ou o próprio Gmail com senha de app.
                 </div>
 
-                <form method="POST">
+                <form method="POST"><?= csrf_campo() ?>
                     <input type="hidden" name="secao" value="emails">
 
                     <div class="config-section-title">Servidor SMTP</div>
@@ -495,7 +497,7 @@ $pagina_atual = 'configuracoes';
                     Ative ou desative métodos de pagamento e configure as credenciais de cada gateway. As chaves são armazenadas com segurança no banco de dados.
                 </div>
 
-                <form method="POST">
+                <form method="POST"><?= csrf_campo() ?>
                     <input type="hidden" name="secao" value="pagamento">
 
                     <div class="config-section-title">Métodos Aceitos</div>
@@ -588,8 +590,8 @@ $pagina_atual = 'configuracoes';
             <?php if($secao_ativa === 'frete'): ?>
             <div class="admin-card config-panel active">
                 <div class="card-header"><span class="card-title">📦 Frete e Logística</span></div>
-                <form method="POST" id="formTesteME" style="display:none;"><input type="hidden" name="testar_melhorenvio" value="1"><input type="hidden" name="csrf" value="<?= htmlspecialchars(fin_csrf_token()) ?>"></form>
-                <form method="POST">
+                <form method="POST" id="formTesteME" style="display:none;"><?= csrf_campo() ?><input type="hidden" name="testar_melhorenvio" value="1"><input type="hidden" name="csrf" value="<?= htmlspecialchars(fin_csrf_token()) ?>"></form>
+                <form method="POST"><?= csrf_campo() ?>
                     <input type="hidden" name="secao" value="frete">
 
                     <div class="config-section-title">Regras Gerais</div>
@@ -833,7 +835,7 @@ $pagina_atual = 'configuracoes';
                     @media (max-width:760px){ .fin-taxas { display:block; overflow-x:auto; } }
                 </style>
 
-                <form method="POST">
+                <form method="POST"><?= csrf_campo() ?>
                     <input type="hidden" name="secao" value="financeiro">
                     <input type="hidden" name="csrf" value="<?= htmlspecialchars(fin_csrf_token()) ?>">
 
@@ -910,7 +912,7 @@ $pagina_atual = 'configuracoes';
             <?php if($secao_ativa === 'seguranca'): ?>
             <div class="admin-card config-panel active">
                 <div class="card-header"><span class="card-title">🔒 Segurança</span></div>
-                <form method="POST">
+                <form method="POST"><?= csrf_campo() ?>
                     <input type="hidden" name="secao" value="seguranca">
 
                     <div class="config-section-title">Sessão e Acesso</div>
@@ -1009,7 +1011,7 @@ $pagina_atual = 'configuracoes';
                         <strong>Modo Manutenção</strong>
                         <span>Exibe página de manutenção para visitantes da loja</span>
                     </div>
-                    <form method="POST" style="display:inline;">
+                    <form method="POST" style="display:inline;"><?= csrf_campo() ?>
                         <input type="hidden" name="secao" value="sistema">
                         <label class="toggle-switch">
                             <input type="hidden" name="modo_manutencao" value="0">
